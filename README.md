@@ -3,8 +3,11 @@ Wario Land 3 Randomizer
 
 This is a randomizer for Wario Land 3! It shuffles the contents of all 100 treasure chests, allowing for a new playthrough every time. The treasures are always shuffled in a way that allows you to complete the game.
 
+## Downloads
+Download the randomizer at: https://github.com/AaronDobbe/wl3-randomizer/releases
+
 ## How to use
-1. Run the executable `wl3-randomizer.jar`.
+1. Extract the `.rar` archive and run the executable `wl3-randomizer.jar`.
 2. Click the "Open Vanilla ROM..." button and select a clean copy of Wario Land 3.
 3. Click the "Generate Randomized Game" button.
 4. A `.gbc` file will be created in the same directory as `wl3-randomizer.jar`. Open this file in a GBC emulator to play. ([bgb](http://bgb.bircd.org/) is highly recommended!)
