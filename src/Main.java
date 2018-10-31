@@ -129,7 +129,7 @@ public class Main {
      * Initialize and show the GUI.
      */
     private static void createGUI() {
-        JFrame frame = new JFrame("Wario Land 3 Randomizer v0.8");
+        JFrame frame = new JFrame("Wario Land 3 Randomizer v0.8.1");
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         gui = new GUI();
         frame.add(gui);
