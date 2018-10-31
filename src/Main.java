@@ -452,11 +452,11 @@ public class Main {
             return inventory.contains(Items.GARLIC) && canAccess("N5", inventory);
         }
         else if (location.equals("W5")) {
-            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W2", inventory);
+            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory);
         }
         else if (location.equals("W6")) {
             return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
-                    && canAccess("W3", inventory);
+                    && canAccess("W2", inventory);
         }
         else if (location.equals("S4")) {
             return inventory.contains(Items.ANGER_HALBERD) && inventory.contains(Items.ANGER_SPELL)
