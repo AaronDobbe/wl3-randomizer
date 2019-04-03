@@ -6,6 +6,8 @@ import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GUI extends JPanel implements ActionListener {
 
@@ -83,7 +85,13 @@ public class GUI extends JPanel implements ActionListener {
             }
         }
         else if (e.getSource() == genButton) {
-            Main.generateGame(seedField.getText());
+            Map<String,String> options = new HashMap<>();
+            options.put("bossBoxes","true");
+            options.put("music","chaos");
+            options.put("axeStart","true");
+            options.put("hints","strategic");
+            options.put("excludeJunk","true");
+            Main.generateGame(seedField.getText(), options);
         }
     }
 

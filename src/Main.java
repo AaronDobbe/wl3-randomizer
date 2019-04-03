@@ -16,6 +16,8 @@ public class Main {
 
     private static GUI gui;
 
+    private static final String VERSION = "v0.9.0";
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
@@ -29,7 +31,7 @@ public class Main {
      *
      * @param userSeed  Seed provided by the user. null if no seed was specified.
      */
-    public static void generateGame(String userSeed) {
+    public static void generateGame(String userSeed, Map<String,String> options) {
         fails = 0;
         // separate junk items from non-junk items
         Integer[] junk = {Items.ROCKETSHIP, Items.POKEMON_PIKACHU, Items.FIGHTER, Items.TELEPHONE, Items.CROWN,
@@ -82,9 +84,19 @@ public class Main {
         // randomize lists of non-junk items and locations
         Collections.shuffle(inventory, rng);
         Collections.shuffle(locations, rng);
+        List<Integer> leftInventory = new Vector<>();
+        boolean axeStart = options.containsKey("axeStart") && options.get("axeStart").equals("true");
+        if (axeStart) {
+            inventory.remove(new Integer(Items.AXE));
+            locations.remove(new Integer(0));
+            leftInventory.add(Items.AXE);
+            treasures.set(0, Items.AXE);
+        }
         int numFails=0;
         // attempt to place treasures
-        while (!placeItemsLeft(new Vector<>(), inventory, locations, treasures)) {
+        boolean bossBoxes = options.containsKey("bossBoxes") && options.get("bossBoxes").equals("true");
+        while ((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, 5))
+                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures))) {
             // could not finish in reasonable time
             // if no user seed provided, generate a new seed and re-randomize using that
             if (userSeed != null && userSeed.length() > 0) {
@@ -99,12 +111,21 @@ public class Main {
             locations = new ArrayList<>(pureLocations);
             Collections.shuffle(inventory, rng);
             Collections.shuffle(locations, rng);
+            if (axeStart) {
+                inventory.remove(new Integer(Items.AXE));
+                locations.remove(new Integer(0));
+            }
             fails = 0;
         }
 
         // items have been placed, now shuffle list of junk and use it to fill in the remaining locations
         Collections.shuffle(junkList,rng);
+        boolean excludeJunk = options.containsKey("excludeJunk") && "true".equals(options.get("excludeJunk"));
+
         for (Integer junkItem : junkList) {
+            if (excludeJunk && junkItem != Items.TIME_BUTTON && junkItem != Items.MAGNIFYING_GLASS) {
+                junkItem = Items.EMPTY;
+            }
             for (int i = 0; i < 100; i++) {
                 if (finalTreasures[i] == 0) {
                     finalTreasures[i] = junkItem;
@@ -113,23 +134,36 @@ public class Main {
             }
         }
 
+        boolean strategicHints = options.containsKey("hints") && options.get("hints").equals("strategic");
+        byte[] playthrough = buildPlaythrough(rng, strategicHints);
+
+        Integer[] music = null;
+        if (options.containsKey("music")) {
+            if (options.get("music").equals("shuffled")) {
+                music = shuffleMusic(false, rng);
+            }
+            else if (options.get("music").equals("chaos")) {
+                music = shuffleMusic(true, rng);
+            }
+        }
+
         // patch vanilla ROM file and create randomized ROM
         try {
-            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed));
+            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, VERSION);
         } catch (IOException e) {
             gui.log("Error occurred while generating randomized game: " + e.getMessage());
             return;
         }
 
         gui.log("Generated randomized game with seed " + encodeSeed(seed));
-        gui.log("Randomized ROM has been saved as WL3-randomizer-" + encodeSeed(seed) + ".gbc");
+        gui.log("Randomized ROM has been saved as WL3-randomizer-" + VERSION + "-" + encodeSeed(seed) + ".gbc");
     }
 
     /**
      * Initialize and show the GUI.
      */
     private static void createGUI() {
-        JFrame frame = new JFrame("Wario Land 3 Randomizer v0.8.1");
+        JFrame frame = new JFrame("Wario Land 3 Randomizer " + VERSION);
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         gui = new GUI();
         frame.add(gui);
@@ -176,7 +210,105 @@ public class Main {
     }
 
     /**
+     * Place an item from rightInventory somewhere it can be logically acquired, then call placeItemsLeft if there are items left to place.
+     *
+     * @param leftInventory  Items already placed at the beginning of the sequence.
+     * @param rightInventory Items yet to be placed anywhere.
+     * @param locations      Locations without treasure.
+     * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
+     * @param bossBoxes      Number of music boxes to give to bosses
+     * @return true if all items were placed successfully, false otherwise
+     */
+    private static boolean placeItemsAssumed(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, int bossBoxes) {
+        Integer[] bossArray = {
+                3,  // anonster
+                14, // pesce
+                20, // octo
+                27, // helio
+                28, // dollboy
+                34, // kezune
+                37, // shoot
+                48, // wormwould
+                73, // muddee
+                74  // jamano
+        };
+        List<Integer> bosses = Arrays.asList(bossArray);
+        for (Integer item : rightInventory) {
+            if (bossBoxes > 0 && item > Items.MUSIC_BOX_5) {
+                continue;
+            }
+            List<Integer> nextRightInventory = new Vector<>(rightInventory);
+            nextRightInventory.remove(item);
+            List<Integer> curInventory = new Vector<>(nextRightInventory);
+            List<Integer> candidateLocations = new Vector<>();
+            List<Integer> checkedList = new Vector<>();
+            boolean foundLocation;
+            do {
+                List<Integer> newItems = new Vector<>();
+                foundLocation = false;
+                for (int location = 0; location < treasures.size(); location++) {
+                    if (checkedList.contains(location) || (bossBoxes > 0 && !bosses.contains(location))) {
+                        continue;
+                    }
+                    if (canAccess(locationNames[location],curInventory)) {
+                        foundLocation = true;
+                        checkedList.add(location);
+                        if (treasures.get(location) == null) {
+                            candidateLocations.add(location);
+                        }
+                        else {
+                            newItems.add(treasures.get(location));
+                        }
+                    }
+                }
+                curInventory.addAll(newItems);
+                if (foundLocation) System.out.print(".");
+            } while (foundLocation);
+            System.out.println();
+
+            if (candidateLocations.size() == 0) {
+                System.out.println("no candidates " + fails);
+                fails++;
+                if (fails >= 500) return false;
+                continue;
+            }
+
+            for (int location : locations) {
+                if (candidateLocations.contains(location)) {
+                    List<Integer> nextTreasures = new Vector<>(treasures);
+                    List<Integer> nextLocations = new Vector<>(locations);
+                    nextLocations.remove(new Integer(location));
+                    nextTreasures.set(location, item);
+                    if (nextRightInventory.size() == 0) {
+                        for (int i = 0; i < nextTreasures.size(); i++) {
+                            if (nextTreasures.get(i) != null) {
+                                finalTreasures[i] = nextTreasures.get(i);
+                            }
+                        }
+                        return true;
+                    }
+                    else if (bossBoxes > 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures,bossBoxes-1)) {
+                        return true;
+                    }
+                    else if (bossBoxes == 1 && placeItemsLeft(leftInventory, nextRightInventory, nextLocations, nextTreasures)) {
+                        return true;
+                    }
+                    else if (bossBoxes < 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, 0)) {
+                        return true;
+                    }
+                    System.out.println("dang " + nextRightInventory.size() + " " + fails);
+                    fails++;
+                    if (fails >= 500) return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Place an item from rightInventory at the end of the sequence, then call placeItemsLeft if there are items left to place.
+     *
+     * @deprecated in favor of placeItemsAssumed, which uses new logic for a more even lategame fill.
      *
      * @param leftInventory  Items already placed at the beginning of the sequence.
      * @param rightInventory Items yet to be placed anywhere.
@@ -255,6 +387,9 @@ public class Main {
      * @return true if all items were placed successfully, false otherwise
      */
     private static boolean placeItemsLeft(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures) {
+        if (fails >= 500) {
+            return false;
+        }
         boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
         for (Integer location : locations) {
             if (!canAccess(locationNames[location], leftInventory, forwardGPStart)) {
@@ -270,12 +405,23 @@ public class Main {
                 nextTreasures.set(location, item);
                 nextLocations.remove(location);
                 forwardGPStart = nextTreasures.get(0) != null && (nextTreasures.get(0).equals(Items.BLUE_OVERALLS) || nextTreasures.get(0).equals(Items.RED_OVERALLS));
-                int locationsLeft = 0;
-                for (Integer checkLocation : locations) {
-                    if (!checkLocation.equals(location) && treasures.get(checkLocation) == null && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart)) {
-                        locationsLeft++;
+                int locationsLeft;
+                boolean restartScan;
+                do {
+                    locationsLeft = 0;
+                    restartScan = false;
+                    for (Integer checkLocation = 0; checkLocation < 100; checkLocation++) {
+                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart)) {
+                            if (treasures.get(checkLocation) != null && !nextLeftInventory.contains(treasures.get(checkLocation))) {
+                                nextLeftInventory.add(treasures.get(checkLocation));
+                                restartScan = true;
+                                System.out.println("------ GOT " + treasures.get(checkLocation));
+                                break;
+                            }
+                            locationsLeft++;
+                        }
                     }
-                }
+                } while (restartScan);
                 if (locationsLeft == 0) {
                     continue;
                 }
@@ -287,15 +433,45 @@ public class Main {
                     }
                     return true;
                 }
-                else if (placeItemsRight(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures)) {
+                else if (nextRightInventory.size() < 60 && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures, 0)) {
                     return true;
                 }
-                else if (fails > 40000) {
+                else if (nextRightInventory.size() >= 60 && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures)) {
+                    return true;
+                }
+                else if (fails > 500) {
                     return false;
                 }
             }
+            fails++;
         }
         return false;
+    }
+
+    private static Integer[] shuffleMusic(boolean chaotic, Random rng) {
+        Integer[] vanilla = { 0x16, 0x1a, 0x1f, 0x17, 0x1c, 0x19, 0x18, 0x1b, 0x20, 0x1e, 0x1d, // statuses
+                          0x01, 0x02, 0x07, 0x08, 0x0e, 0x0f, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, // north
+                          0x05, 0x05, 0x0c, 0x0b, 0x13, 0x14, 0x07, 0x08, 0x11, 0x11, 0x0d, 0x0d, // west
+                          0x0e, 0x0f, 0x10, 0x10, 0x05, 0x05, 0x10, 0x10, 0x12, 0x12, 0x09, 0x0a, // south
+                          0x13, 0x14, 0x06, 0x06, 0x0c, 0x0b, 0x12, 0x12, 0x04, 0x04, 0x0d, 0x0d, 0x03, 0x03}; //east
+
+        if (chaotic) {
+            Integer[] notLooped = { 0x15, 0x24, 0x2a, 0x2b, 0x2c, 0x2d, 0x31, 0x34, 0x39 };
+            List<Integer> disallowed = Arrays.asList(notLooped);
+            for (int i = 0; i < vanilla.length; i++) {
+                Integer newMusic;
+                do {
+                    newMusic = rng.nextInt(0x39) + 1;
+                } while (disallowed.contains(newMusic));
+                vanilla[i] = newMusic;
+            }
+            return vanilla;
+        }
+        else {
+            List<Integer> newMusic = Arrays.asList(vanilla);
+            Collections.shuffle(newMusic, rng);
+            return newMusic.toArray(new Integer[newMusic.size()]);
+        }
     }
 
     /**
@@ -346,6 +522,56 @@ public class Main {
             seed += val;
         }
         return seed;
+    }
+
+    private static byte[] buildPlaythrough(Random rng, boolean strategic) {
+        List<Integer> inventory = new Vector<>();
+        List<Integer> locationsChecked = new Vector<>();
+        byte[] playthrough = new byte[100];
+        int idx = 0;
+        int stratIdx = 1;
+
+        int sphere = 0;
+
+        if (strategic) {
+            playthrough[0] = Items.AXE;
+            playthrough[6] = Items.GOLD_GLOVES;
+            playthrough[7] = Items.RED_OVERALLS;
+            idx = 8;
+        }
+
+        boolean gotItem;
+        do {
+            List<Integer> newItems = new Vector<>();
+            gotItem = false;
+            System.out.println("--- SPHERE " + sphere + " ---");
+            for (int i = 0; i < finalTreasures.length; i++) {
+                if (locationsChecked.contains(i)) continue;
+                if (canAccess(locationNames[i], inventory, finalTreasures[0] == Items.RED_OVERALLS || finalTreasures[0] == Items.BLUE_OVERALLS && sphere == 1)) {
+                    locationsChecked.add(i);
+                    gotItem = true;
+                    newItems.add(finalTreasures[i]);
+                    System.out.println((inventory.size() + newItems.size()) + ". " + locationNames[i] + ": item " + finalTreasures[i]);
+                }
+            }
+            Collections.shuffle(newItems, rng);
+            for (int item : newItems) {
+                if (strategic && (item == Items.AXE || item == Items.GOLD_GLOVES || item == Items.RED_OVERALLS || item == Items.EMPTY)) {
+                    // do nothing; this item has already been preset as a strategic hint
+                }
+                else if (strategic && item <= Items.MUSIC_BOX_5) {
+                    playthrough[stratIdx] = (byte)item;
+                    stratIdx++;
+                }
+                else {
+                    playthrough[idx] = (byte) item;
+                    idx++;
+                }
+            }
+            inventory.addAll(newItems);
+            sphere++;
+        } while (gotItem);
+        return playthrough;
     }
 
     /**

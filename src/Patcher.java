@@ -13,27 +13,35 @@ public class Patcher {
      * @param vanillaPathStr  path to a vanilla ROM
      * @param treasures       ordered list of randomized treasures
      * @param seed            encoded String representation of the seed used to generate treasures
+     * @param playthrough     byte array representing order that treasures should be collected in, or null if vanilla
+     * @param version         String representing current app version
      * @throws IOException    if something goes wrong reading from or writing to a ROM
      */
-    public static void patch(String vanillaPathStr, int[] treasures, String seed) throws IOException {
+    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, String version) throws IOException {
         Path vanillaPath = new File(vanillaPathStr).toPath();
-        byte[] romBytes = basePatch(vanillaPath);
+        byte[] romBytes = Files.readAllBytes(vanillaPath);
+        romBytes = applyPatch(romBytes, "baseDiff.json");
         romBytes = treasuresPatch(romBytes, treasures);
-        savePatchedFile(romBytes, seed);
+        if (playthrough != null) {
+            romBytes = hintPatch(romBytes, playthrough);
+        }
+        if (music != null) {
+            romBytes = musicPatch(romBytes, music);
+        }
+        savePatchedFile(romBytes, seed, version);
     }
 
     /**
      * Read a ROM file and modify it in memory with the randomizer patch.
      *
-     * @param vanillaPath  path to a vanilla ROM
+     *
      * @return byte array representing a patched ROM
      * @throws IOException
      */
-    private static byte[] basePatch(Path vanillaPath) throws IOException {
-            byte[] romBytes = Files.readAllBytes(vanillaPath);
+    private static byte[] applyPatch(byte[] romBytes, String patchName) throws IOException {
             Gson gson = new GsonBuilder().create();
             ClassLoader classLoader = Patcher.class.getClassLoader();
-            InputStream baseDiff = Patcher.class.getResourceAsStream("baseDiff.json");
+            InputStream baseDiff = Patcher.class.getResourceAsStream(patchName);
             BufferedReader br = new BufferedReader(new InputStreamReader(baseDiff));
             String diffStr = br.readLine();
             br.close();
@@ -65,15 +73,44 @@ public class Patcher {
         return romBytes;
     }
 
+    private static byte[] hintPatch(byte[] romBytes, byte[] playthrough) throws IOException {
+        int idx = 0x82cc0;
+        romBytes[idx] = (byte)0x00;
+        for (int i = 0; i < playthrough.length; i++) {
+            romBytes[idx+1+i] = playthrough[i];
+        }
+        romBytes[idx+1+playthrough.length] = (byte)0xeb;
+        romBytes = applyPatch(romBytes, "hintsPatch.json");
+        return romBytes;
+    }
+
+    private static byte[] musicPatch(byte[] romBytes, Integer[] music) {
+        int idx = 0x3fe00;
+        for (int i = 0; i < music.length; i++) {
+            // first 11 tracks are for status effects, should be applied only once
+            // remaining tracks are level themes and should be applied four times each
+            // (one for each level copy for a given time of day)
+            for (int numCopies = (i < 11 ? 1 : 4); numCopies > 0; numCopies--) {
+                while (romBytes[idx] == (byte)0xFF || romBytes[idx] == (byte)0x00) {
+                    idx++;
+                }
+                romBytes[idx] = music[i].byteValue();
+                idx++;
+            }
+        }
+        return romBytes;
+    }
+
     /**
      * Write the patched, randomized ROM to disk.
      *
      * @param romBytes  byte array representing the final ROM
      * @param seed      encoded String representation of the seed used to randomize the ROM
+     * @param version         String representing current app version
      * @throws IOException
      */
-    private static void savePatchedFile(byte[] romBytes, String seed) throws IOException {
-        String filename = "WL3-randomizer-" + seed + ".gbc";
+    private static void savePatchedFile(byte[] romBytes, String seed, String version) throws IOException {
+        String filename = "WL3-randomizer-" + version + "-" + seed + ".gbc";
         File randoFile = new File(filename);
         Files.write(randoFile.toPath(),romBytes);
     }

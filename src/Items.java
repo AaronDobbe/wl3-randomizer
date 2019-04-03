@@ -1,6 +1,8 @@
 public class Items {
     // For code readability, a list of constants representing all treasures in the game.
 
+    public static final int EMPTY = 0x00;
+
     public static final int MUSIC_BOX_1 = 0x01;
     public static final int MUSIC_BOX_2 = 0x02;
     public static final int MUSIC_BOX_3 = 0x03;
