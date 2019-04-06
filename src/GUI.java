@@ -88,9 +88,10 @@ public class GUI extends JPanel implements ActionListener {
             Map<String,String> options = new HashMap<>();
             options.put("bossBoxes","true");
             options.put("music","chaos");
-            options.put("axeStart","true");
-            options.put("hints","strategic");
+            options.put("axeStart","false");
+            options.put("hints","normal");
             options.put("excludeJunk","true");
+            options.put("mapShuffle","true");
             Main.generateGame(seedField.getText(), options);
         }
     }

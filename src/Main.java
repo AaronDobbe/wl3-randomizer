@@ -10,6 +10,9 @@ import java.util.*;
 public class Main {
     private static String[] locationNames;
     private static int[] finalTreasures;
+
+    private static Integer[] worldMap;
+
     private static int fails = 0;
 
     private static String vanillaFileLocation;
@@ -56,9 +59,17 @@ public class Main {
             treasures.add(null);
         }
         finalTreasures = new int[100];
+
+        List<Integer> mapList = new ArrayList<Integer>();
+        for (int i = 0; i < 25; i++) {
+            mapList.add(i);
+        }
+        boolean mapShuffle = options.containsKey("mapShuffle") && "true".equals(options.get("mapShuffle"));
+
         // keep unshuffled lists in case we need re-randomization
         List<Integer> pureInventory = new ArrayList<>(inventory);
         List<Integer> pureLocations = new ArrayList<>(locations);
+        List<Integer> pureMapList = new ArrayList<>(mapList);
 
         // Set up the random object
         Random seedRNG = new Random();
@@ -84,6 +95,13 @@ public class Main {
         // randomize lists of non-junk items and locations
         Collections.shuffle(inventory, rng);
         Collections.shuffle(locations, rng);
+
+        if (mapShuffle) {
+            mapList = shuffleMap(mapList,rng);
+        }
+
+        worldMap = mapList.toArray(new Integer[25]);
+
         List<Integer> leftInventory = new Vector<>();
         boolean axeStart = options.containsKey("axeStart") && options.get("axeStart").equals("true");
         if (axeStart) {
@@ -109,8 +127,13 @@ public class Main {
             rng = new Random(seed);
             inventory = new ArrayList<>(pureInventory);
             locations = new ArrayList<>(pureLocations);
+            mapList = new ArrayList<>(pureMapList);
             Collections.shuffle(inventory, rng);
             Collections.shuffle(locations, rng);
+            if (mapShuffle) {
+                mapList = shuffleMap(mapList,rng);
+            }
+            worldMap = mapList.toArray(new Integer[25]);
             if (axeStart) {
                 inventory.remove(new Integer(Items.AXE));
                 locations.remove(new Integer(0));
@@ -149,7 +172,7 @@ public class Main {
 
         // patch vanilla ROM file and create randomized ROM
         try {
-            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, VERSION);
+            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, mapShuffle ? worldMap : null, VERSION);
         } catch (IOException e) {
             gui.log("Error occurred while generating randomized game: " + e.getMessage());
             return;
@@ -390,9 +413,10 @@ public class Main {
         if (fails >= 500) {
             return false;
         }
-        boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
+        //boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
         for (Integer location : locations) {
-            if (!canAccess(locationNames[location], leftInventory, forwardGPStart)) {
+            boolean forwardGPStart = !leftInventory.contains(Items.AXE) && !leftInventory.contains(Items.TORCH);
+            if (!canAccess(locationNames[location], leftInventory, forwardGPStart, false)) {
                 continue;
             }
             for (Integer item : rightInventory) {
@@ -404,14 +428,14 @@ public class Main {
                 List<Integer> nextLocations = new Vector<>(locations);
                 nextTreasures.set(location, item);
                 nextLocations.remove(location);
-                forwardGPStart = nextTreasures.get(0) != null && (nextTreasures.get(0).equals(Items.BLUE_OVERALLS) || nextTreasures.get(0).equals(Items.RED_OVERALLS));
+//                forwardGPStart = !nextLeftInventory.contains(Items.AXE) && !nextLeftInventory.contains(Items.TORCH);
                 int locationsLeft;
                 boolean restartScan;
                 do {
                     locationsLeft = 0;
                     restartScan = false;
                     for (Integer checkLocation = 0; checkLocation < 100; checkLocation++) {
-                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart)) {
+                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart, false)) {
                             if (treasures.get(checkLocation) != null && !nextLeftInventory.contains(treasures.get(checkLocation))) {
                                 nextLeftInventory.add(treasures.get(checkLocation));
                                 restartScan = true;
@@ -472,6 +496,23 @@ public class Main {
             Collections.shuffle(newMusic, rng);
             return newMusic.toArray(new Integer[newMusic.size()]);
         }
+    }
+
+    private static List<Integer> shuffleMap(List<Integer> initialMap, Random rng) {
+        Vector<Integer> shuffledMap = new Vector<>(initialMap);
+        Collections.shuffle(shuffledMap, rng);
+        Integer firstLevel = 0;
+        Integer[] firstLevelsArr = {0, 1, 2, 4, 6, 7, 9, 13, 14, 15, 17, 18, 19, 21, 24};
+        List<Integer> firstLevels = Arrays.asList(firstLevelsArr);
+        for (Integer level : shuffledMap) {
+            if (firstLevels.contains(level)) {
+                firstLevel = level;
+                break;
+            }
+        }
+        shuffledMap.remove(firstLevel);
+        shuffledMap.insertElementAt(firstLevel,0);
+        return shuffledMap;
     }
 
     /**
@@ -547,11 +588,15 @@ public class Main {
             System.out.println("--- SPHERE " + sphere + " ---");
             for (int i = 0; i < finalTreasures.length; i++) {
                 if (locationsChecked.contains(i)) continue;
-                if (canAccess(locationNames[i], inventory, finalTreasures[0] == Items.RED_OVERALLS || finalTreasures[0] == Items.BLUE_OVERALLS && sphere == 1)) {
+                if (canAccess(locationNames[i], inventory, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
                     locationsChecked.add(i);
                     gotItem = true;
                     newItems.add(finalTreasures[i]);
-                    System.out.println((inventory.size() + newItems.size()) + ". " + locationNames[i] + ": item " + finalTreasures[i]);
+                    int level = 0;
+                    for (int j = 0; j < worldMap.length; j++) {
+                        if (worldMap[j] == i/4) level = j;
+                    }
+                    System.out.println((inventory.size() + newItems.size()) + ". " + locationNames[i] + "(level " + level + "): item " + finalTreasures[i]);
                 }
             }
             Collections.shuffle(newItems, rng);
@@ -616,6 +661,19 @@ public class Main {
         return inventory.contains(Items.GOLD_GLOVES);
     }
 
+    private static boolean isDaytime(String location, List<Integer> inventory) {
+        if (inventory.contains(Items.SUN_FRAGMENT_L) && inventory.contains(Items.SUN_FRAGMENT_R)) {
+            return true;
+        }
+        int falseIdx = "NWSE".indexOf(location.charAt(0))*6 + (Integer.parseInt(location.substring(1))-1);
+        for (int i = 0; i < worldMap.length; i++) {
+            if (worldMap[i] == falseIdx) {
+                return i < 18;
+            }
+        }
+        return false;
+    }
+
     /**
      * Check if the provided inventory allows Wario to access the given location.
      *
@@ -627,7 +685,7 @@ public class Main {
      *                    a treasure at that location
      */
     private static boolean canAccess(String location, List<Integer> inventory) {
-        return canAccess(location, inventory, false);
+        return canAccess(location, inventory, false, false);
     }
 
     /**
@@ -642,7 +700,8 @@ public class Main {
      * @param forwardGPStart true if this is being called to place an item at the beginning of the sequence, and
      *                        there is an overalls treasure at N1S (affects accessibility of N1R)
      */
-    private static boolean canAccess(String location, List<Integer> inventory, boolean forwardGPStart) {
+    private static boolean canAccess(String location, List<Integer> inventory, boolean forwardGPStart, boolean adjusted) {
+
         if (location.equals("NW")) {
             return inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R);
         }
@@ -659,7 +718,17 @@ public class Main {
                     && (canAccess("NE",inventory) ||
                         ((canAccess("NW",inventory) && (inventory.contains(Items.COG_WHEEL_A) && inventory.contains(Items.COG_WHEEL_B)))));
         }
-        else if (location.equals("N1")) {
+
+        if (!adjusted && location.length() == 2) {
+            int falseIdx = "NWSE".indexOf(location.charAt(0))*6 + (Integer.parseInt(location.substring(1))-1);
+            for (int i = 0; i < worldMap.length; i++) {
+                if (worldMap[i] == falseIdx) {
+                    location = "" + ("NWSEE".charAt(i/6)) + ((i == 24) ? "7" : Character.forDigit((i%6)+1,10));
+                }
+            }
+        }
+
+        if (location.equals("N1")) {
             return true;
         }
         else if (location.equals("N2")) {
@@ -669,70 +738,78 @@ public class Main {
             return inventory.contains(Items.AXE) || (inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R));
         }
         else if (location.equals("N4")) {
-            return inventory.contains(Items.MUSIC_BOX_2) && canAccess("N3", inventory);
+            return inventory.contains(Items.MUSIC_BOX_2) && canAccess("N3", inventory, false, true);
         }
         else if (location.equals("N5")) {
-            return canAccess("N4", inventory);
+            return canAccess("N4", inventory, false, true);
         }
         else if (location.equals("N6")) {
-            return inventory.contains(Items.GARLIC) && canAccess("N5", inventory);
+            return inventory.contains(Items.GARLIC) && canAccess("N5", inventory, false, true);
         }
         else if (location.equals("W5")) {
-            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory);
+            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory, false, true);
         }
         else if (location.equals("W6")) {
             return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
-                    && canAccess("W2", inventory);
+                    && canAccess("W2", inventory, false, true);
         }
         else if (location.equals("S4")) {
             return inventory.contains(Items.ANGER_HALBERD) && inventory.contains(Items.ANGER_SPELL)
-                    && canAccess("S2", inventory);
+                    && canAccess("S2", inventory, false, true);
         }
         else if (location.equals("S5")) {
             return inventory.contains(Items.MUSIC_BOX_3)
-                    && canAccess("S2", inventory);
+                    && canAccess("S2", inventory, false, true);
         }
         else if (location.equals("S6")) {
             return inventory.contains(Items.SKY_KEY)
-                    && canAccess("S3", inventory);
+                    && canAccess("S3", inventory, false, true);
         }
         else if (location.equals("E3")) {
             return inventory.contains(Items.LAMP) && inventory.contains(Items.FLAME)
-                    && canAccess("E1", inventory);
+                    && canAccess("E1", inventory, false, true);
         }
         else if (location.equals("E5")) {
             return inventory.contains(Items.WARP_COMPACT)
-                    && canAccess("E7", inventory);
+                    && canAccess("E7", inventory, false, true);
         }
         else if (location.equals("E6")) {
             return inventory.contains(Items.CRATER_MAP)
-                    && canAccess("E3", inventory);
+                    && canAccess("E3", inventory, false, true);
         }
         else if (location.length() == 2) {
             return canAccessFromWest(location, inventory) || canAccessFromEast(location, inventory);
         }
-        else if (location.equals("N1S")) {
+
+        // check N1 node accessibility
+        if (inventory.contains(Items.TORCH)) {
+            int falseIdx = "NWSE".indexOf(location.charAt(0)) * 6 + (Integer.parseInt(location.substring(1, 2)) - 1);
+            if (worldMap[0] == falseIdx) {
+                if (!inventory.contains(Items.AXE)) {
+                    return false;
+                }
+            }
+        }
+
+        if (location.equals("N1S")) {
             return canAccess("N1", inventory);
         }
         else if (location.equals("N1R")) {
             return canAccess("N1", inventory)
-                    && canGP(inventory)
-                    && (inventory.contains(Items.AXE) || forwardGPStart);
+                    && canGP(inventory);
         }
         else if (location.equals("N1G")) {
             return canAccess("N1", inventory)
                     && inventory.contains(Items.JUMP_BOOTS)
                     && inventory.contains(Items.WIND)
-                    && inventory.contains(Items.WIND_BAG)
-                    && inventory.contains(Items.AXE);
+                    && inventory.contains(Items.WIND_BAG);
         }
         else if (location.equals("N1B")) {
             return canAccess("N1", inventory)
                     && inventory.contains(Items.POWDER)
                     && inventory.contains(Items.JUMP_BOOTS)
                     && canLift(inventory)
-                    && canGP(inventory)
-                    && inventory.contains(Items.AXE);
+                    && canGP(inventory);
         }
         else if (location.equals("N2S")) {
             return canAccess("N2", inventory);
@@ -833,7 +910,7 @@ public class Main {
                     && inventory.contains(Items.JUMP_BOOTS);
         }
         else if (location.equals("W1S")) {
-            return canAccess("W1", inventory);
+            return canAccess("W1", inventory) && isDaytime("W1", inventory);
         }
         else if (location.equals("W1R")) {
             return canAccess("W1", inventory);
@@ -1109,7 +1186,7 @@ public class Main {
         }
         else if (location.equals("E3R")) {
             return canAccess("E3", inventory)
-                    && (canSuperLift(inventory) || (canLift(inventory) && inventory.contains(Items.SUN_FRAGMENT_L) && inventory.contains(Items.SUN_FRAGMENT_R)))
+                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory)))
                     && (canSuperGP(inventory) || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("E3G")) {
@@ -1121,7 +1198,7 @@ public class Main {
                     && inventory.contains(Items.BRICK)
                     && canLift(inventory)
                     && canGP(inventory)
-                    && (inventory.contains(Items.JUMP_BOOTS) || (inventory.contains(Items.SUN_FRAGMENT_R) && inventory.contains(Items.SUN_FRAGMENT_L)));
+                    && (inventory.contains(Items.JUMP_BOOTS) || isDaytime("E3", inventory));
         }
         else if (location.equals("E4S")) {
             return canAccess("E4", inventory);
@@ -1133,8 +1210,7 @@ public class Main {
         }
         else if (location.equals("E4G")) {
             return canAccess("E4", inventory)
-                    && ((inventory.contains(Items.SUN_FRAGMENT_L)
-                    && inventory.contains(Items.SUN_FRAGMENT_R))
+                    && (isDaytime("E3", inventory)
                     || (inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E4B")) {
