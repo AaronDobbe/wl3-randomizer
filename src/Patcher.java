@@ -150,8 +150,14 @@ public class Patcher {
         romBytes = scrambleLevels(romBytes,worldMap, 0x200, 0x94200, gfxSkips);
         romBytes = scrambleLevels(romBytes,worldMap, 0x200, 0x90200, gfxSkips);
         // reassign text level names (for temple hints) in both english and japanese
-        romBytes = scrambleHintText(romBytes,worldMap,0xb2135);
-        romBytes = scrambleHintText(romBytes,worldMap,0xb1feb);
+        romBytes = scrambleHintText(romBytes,worldMap,0xb211a,0x74000);
+        romBytes[0xacc4b] = (byte)0x00;
+        romBytes[0xacc4c] = (byte)0x40;
+        romBytes[0xacc4e] = (byte)0x1D;
+        romBytes = scrambleHintText(romBytes,worldMap,0xb1fd7, 0x74220);
+        romBytes[0xacc46] = (byte)0x20;
+        romBytes[0xacc47] = (byte)0x42;
+
         // the warp data for all North and West levels is stored in bank 0x30, while the warp data for all
         // South and East levels is stored in 0x31. For the patch to work we need to supply a list of which
         // map nodes have North and West levels, so the game knows which bank to load from.
@@ -262,8 +268,19 @@ public class Patcher {
      * @param idx      Index of first byte of first string to reorder
      */
     private static byte[] scrambleHintText(byte[] romBytes, Integer[] worldMap, int idx) {
+        return scrambleHintText(romBytes,worldMap,idx,idx);
+    }
+
+    /**
+     * Reassigns text level names to their correct levels.
+     *
+     * @param worldMap List of level IDs, in the order they appear on the map
+     * @param idx      Index of first byte of first string to reorder
+     * @param outIdx   Index of where to rewrite level names
+     */
+    private static byte[] scrambleHintText(byte[] romBytes, Integer[] worldMap, int idx, int outIdx) {
         // first, decompress level text as one big string
-        byte[] levelText = new byte[60*16];
+        byte[] levelText = new byte[64*16];
         int offset = 0;
         int textIdx = 0;
         while (textIdx < levelText.length) {
@@ -284,14 +301,13 @@ public class Patcher {
         }
 
         // swap level names around
-        int[] skips = {6, 13, 20}; // empty spaces where N7, W7, and S7 would be
+        int[] skips = {0, 1, 8, 15, 22}; // empty spaces where N7, W7, and S7 would be
         levelText = scrambleLevels(levelText,worldMap,32,0, skips);
 
-        // compress level names again to fit in the prior space
-        byte[] compressedNames = new byte[offset];
+        // compress level names again
+        List<Byte> compressedNames = new Vector<>();
         textIdx = 0;
-        int compIdx = 0;
-        while (compIdx < compressedNames.length) {
+        while (textIdx < levelText.length) {
             // find three or more spaces in a row to signify end of string
             int scanIdx = textIdx;
             while (scanIdx < levelText.length - 2 && (levelText[scanIdx] != 0x7f || levelText[scanIdx+1] != 0x7f || levelText[scanIdx+2] != 0x7f)) {
@@ -299,11 +315,9 @@ public class Patcher {
             }
             // write string length followed by string
             int len = scanIdx - textIdx;
-            compressedNames[compIdx] = (byte)(0x80 + (len & 0xff));
-            compIdx++;
+            compressedNames.add((byte)(0x80 + (len & 0xff)));
             for (int i = 0; i < len; i++) {
-                compressedNames[compIdx] = levelText[textIdx];
-                compIdx++;
+                compressedNames.add(levelText[textIdx]);
                 textIdx++;
             }
             // determine number of spaces between this string and next
@@ -312,15 +326,18 @@ public class Patcher {
                 scanIdx++;
             }
             len = scanIdx - textIdx;
-            compressedNames[compIdx] = (byte)len;
-            compIdx++;
-            compressedNames[compIdx] = (byte)0x7f;
-            compIdx++;
+            compressedNames.add((byte)len);
+            compressedNames.add((byte)0x7f);
             textIdx = scanIdx;
         }
         // persist recompressed text to the working copy of the ROM
-        for (int i = 0; i < compressedNames.length; i++) {
-            romBytes[idx + i] = compressedNames[i];
+        for (int i = 0; i < compressedNames.size(); i++) {
+            romBytes[outIdx + i] = compressedNames.get(i);
+        }
+        if (idx != outIdx) {
+            //add ending tag
+            romBytes[outIdx + compressedNames.size()] = (byte) 0x00;
+            romBytes[outIdx + compressedNames.size() + 1] = (byte) 0x7f;
         }
 
         return romBytes;
