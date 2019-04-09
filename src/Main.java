@@ -869,7 +869,7 @@ public class Main {
         }
         else if (location.equals("N1R")) {
             return canAccess("N1", inventory)
-                    && canGP(inventory);
+                    && (canGP(inventory) || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("N1G")) {
             return canAccess("N1", inventory)
