@@ -125,12 +125,12 @@ public class GUI extends JPanel implements ActionListener {
         musicButtonGroup.add(musicVanillaButton);
         add(musicVanillaButton,c);
         c.gridx = 2;
-        JRadioButton musicShuffledButton = new JRadioButton("Shuffled",false);
+        JRadioButton musicShuffledButton = new JRadioButton("Shuffled",true);
         musicButtonGroup.add(musicShuffledButton);
         musicShuffledButton.setActionCommand("shuffled");
         add(musicShuffledButton,c);
         c.gridx = 3;
-        JRadioButton musicChaosButton = new JRadioButton("Chaos",true);
+        JRadioButton musicChaosButton = new JRadioButton("Chaos",false);
         musicButtonGroup.add(musicChaosButton);
         musicChaosButton.setActionCommand("chaos");
         add(musicChaosButton,c);
