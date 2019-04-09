@@ -95,7 +95,6 @@ public class Main {
         // randomize lists of non-junk items and locations
         Collections.shuffle(inventory, rng);
         Collections.shuffle(locations, rng);
-
         if (mapShuffle) {
             mapList = shuffleMap(mapList,rng);
         }
@@ -105,10 +104,12 @@ public class Main {
         List<Integer> leftInventory = new Vector<>();
         boolean axeStart = options.containsKey("axeStart") && options.get("axeStart").equals("true");
         if (axeStart) {
+            // pre-place the axe in the gray chest of level 0
             inventory.remove(new Integer(Items.AXE));
-            locations.remove(new Integer(0));
+            locations.remove(new Integer(worldMap[0]*4));
             leftInventory.add(Items.AXE);
-            treasures.set(0, Items.AXE);
+            Collections.replaceAll(treasures,Items.AXE,null);
+            treasures.set(worldMap[0]*4, Items.AXE);
         }
         int numFails=0;
         // attempt to place treasures
@@ -136,7 +137,10 @@ public class Main {
             worldMap = mapList.toArray(new Integer[25]);
             if (axeStart) {
                 inventory.remove(new Integer(Items.AXE));
-                locations.remove(new Integer(0));
+                locations.remove(new Integer(worldMap[0]*4));
+                leftInventory.add(Items.AXE);
+                Collections.replaceAll(treasures,Items.AXE,null);
+                treasures.set(worldMap[0]*4, Items.AXE);
             }
             fails = 0;
         }
@@ -147,6 +151,7 @@ public class Main {
 
         for (Integer junkItem : junkList) {
             if (excludeJunk && junkItem != Items.TIME_BUTTON && junkItem != Items.MAGNIFYING_GLASS) {
+                // if junk items are excluded, replace with empty boxes
                 junkItem = Items.EMPTY;
             }
             for (int i = 0; i < 100; i++) {
@@ -157,9 +162,14 @@ public class Main {
             }
         }
 
-        boolean strategicHints = options.containsKey("hints") && options.get("hints").equals("strategic");
-        byte[] playthrough = buildPlaythrough(rng, strategicHints);
+        // build playthrough to set up hints if requested
+        byte[] playthrough = null;
+        if (options.containsKey("hints") && !options.get("hints").equals("vanilla")) {
+            boolean strategicHints = options.get("hints").equals("strategic");
+            playthrough = buildPlaythrough(rng, strategicHints);
+        }
 
+        // randomize music if requested
         Integer[] music = null;
         if (options.containsKey("music")) {
             if (options.get("music").equals("shuffled")) {
@@ -233,7 +243,7 @@ public class Main {
     }
 
     /**
-     * Place an item from rightInventory somewhere it can be logically acquired, then call placeItemsLeft if there are items left to place.
+     * Place an item from rightInventory somewhere it can be logically acquired.
      *
      * @param leftInventory  Items already placed at the beginning of the sequence.
      * @param rightInventory Items yet to be placed anywhere.
@@ -268,6 +278,7 @@ public class Main {
             boolean foundLocation;
             do {
                 List<Integer> newItems = new Vector<>();
+                List<Integer> newCandidateLocations = new Vector<>();
                 foundLocation = false;
                 for (int location = 0; location < treasures.size(); location++) {
                     if (checkedList.contains(location) || (bossBoxes > 0 && !bosses.contains(location))) {
@@ -277,20 +288,25 @@ public class Main {
                         foundLocation = true;
                         checkedList.add(location);
                         if (treasures.get(location) == null) {
-                            candidateLocations.add(location);
+                            newCandidateLocations.add(location);
                         }
                         else {
                             newItems.add(treasures.get(location));
                         }
                     }
                 }
-                curInventory.addAll(newItems);
-                if (foundLocation) System.out.print(".");
+                if (!curInventory.contains(Items.AXE) && newItems.contains(Items.TORCH)) {
+                    // without the axe, we must have found the torch in level 0
+                    // take only the torch and restart scan (to avoid softlock potential)
+                    curInventory.add(Items.TORCH);
+                }
+                else {
+                    curInventory.addAll(newItems);
+                    candidateLocations.addAll(newCandidateLocations);
+                }
             } while (foundLocation);
-            System.out.println();
 
             if (candidateLocations.size() == 0) {
-                System.out.println("no candidates " + fails);
                 fails++;
                 if (fails >= 500) return false;
                 continue;
@@ -319,7 +335,6 @@ public class Main {
                     else if (bossBoxes < 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, 0)) {
                         return true;
                     }
-                    System.out.println("dang " + nextRightInventory.size() + " " + fails);
                     fails++;
                     if (fails >= 500) return false;
                 }
@@ -401,7 +416,7 @@ public class Main {
     }
 
     /**
-     * Place an item from rightInventory at the beginning of the sequence (moving it to leftInventory), then call placeItemsRight if there are items left to place.
+     * Place an item from rightInventory at the beginning of the sequence (moving it to leftInventory).
      *
      * @param leftInventory  Items already placed at the beginning of the sequence.
      * @param rightInventory Items yet to be placed anywhere.
@@ -419,7 +434,43 @@ public class Main {
             if (!canAccess(locationNames[location], leftInventory, forwardGPStart, false)) {
                 continue;
             }
+
+            boolean forceTorch = false;
+            if (forwardGPStart) {
+                // because of the possibility of multiple treasures being available in the first level of map shuffle,
+                // we need to be sure the player can't softlock by warping out with the torch before getting all
+                // treasures.
+                boolean torchFirst = false;
+                for (Integer item : rightInventory) {
+                    if (item == Items.AXE) {
+                        break;
+                    }
+                    else if (item == Items.TORCH) {
+                        torchFirst = true;
+                        break;
+                    }
+                }
+                if (torchFirst) {
+                    int levelIdx = (location / 4) * 4;
+                    int locationsLeft = 0;
+                    for (int i = levelIdx; i < levelIdx + 4; i++) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory)) {
+                            locationsLeft++;
+                        }
+                    }
+                    if (locationsLeft > 1) {
+                        forceTorch = true;
+                    }
+                }
+            }
+
             for (Integer item : rightInventory) {
+                if (forceTorch && item != Items.TORCH) {
+                    continue;
+                }
+                if (item == Items.TORCH && location/4 == worldMap[0] && treasures.indexOf(Items.AXE)/4 == worldMap[0]) {
+                    continue;
+                }
                 List<Integer> nextLeftInventory = new Vector<>(leftInventory);
                 nextLeftInventory.add(item);
                 List<Integer> nextRightInventory = new Vector<>(rightInventory);
@@ -439,7 +490,6 @@ public class Main {
                             if (treasures.get(checkLocation) != null && !nextLeftInventory.contains(treasures.get(checkLocation))) {
                                 nextLeftInventory.add(treasures.get(checkLocation));
                                 restartScan = true;
-                                System.out.println("------ GOT " + treasures.get(checkLocation));
                                 break;
                             }
                             locationsLeft++;
@@ -472,12 +522,20 @@ public class Main {
         return false;
     }
 
+    /**
+     * Randomize the game's music.
+     *
+     * @param chaotic false if music should be shuffled; true if it should be completely randomized
+     * @param rng random object to use
+     * @return a list of music tracks in the order they should be added to the ROM
+     */
     private static Integer[] shuffleMusic(boolean chaotic, Random rng) {
         Integer[] vanilla = { 0x16, 0x1a, 0x1f, 0x17, 0x1c, 0x19, 0x18, 0x1b, 0x20, 0x1e, 0x1d, // statuses
                           0x01, 0x02, 0x07, 0x08, 0x0e, 0x0f, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, // north
                           0x05, 0x05, 0x0c, 0x0b, 0x13, 0x14, 0x07, 0x08, 0x11, 0x11, 0x0d, 0x0d, // west
                           0x0e, 0x0f, 0x10, 0x10, 0x05, 0x05, 0x10, 0x10, 0x12, 0x12, 0x09, 0x0a, // south
-                          0x13, 0x14, 0x06, 0x06, 0x0c, 0x0b, 0x12, 0x12, 0x04, 0x04, 0x0d, 0x0d, 0x03, 0x03}; //east
+                          0x13, 0x14, 0x06, 0x06, 0x0c, 0x0b, 0x12, 0x12, 0x04, 0x04, 0x0d, 0x0d, 0x03, 0x03, //east
+                          0x21, 0x22, 0x23, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2e, 0x2f, 0x30, 0x32, 0x32, 0x33, 0x37, 0x35, 0x36, 0x38, 0x3a}; // other songs (titlescreen, map, etc)
 
         if (chaotic) {
             Integer[] notLooped = { 0x15, 0x24, 0x2a, 0x2b, 0x2c, 0x2d, 0x31, 0x34, 0x39 };
@@ -485,7 +543,7 @@ public class Main {
             for (int i = 0; i < vanilla.length; i++) {
                 Integer newMusic;
                 do {
-                    newMusic = rng.nextInt(0x39) + 1;
+                    newMusic = rng.nextInt(0x3A) + 1;
                 } while (disallowed.contains(newMusic));
                 vanilla[i] = newMusic;
             }
@@ -498,6 +556,13 @@ public class Main {
         }
     }
 
+    /**
+     * Randomize the game's world map. Ensures that the first level has an item reachable with an empty inventory.
+     *
+     * @param initialMap  initial list of locations to shuffle
+     * @param rng         random object to use
+     * @return A shuffled list of locations
+     */
     private static List<Integer> shuffleMap(List<Integer> initialMap, Random rng) {
         Vector<Integer> shuffledMap = new Vector<>(initialMap);
         Collections.shuffle(shuffledMap, rng);
@@ -565,6 +630,13 @@ public class Main {
         return seed;
     }
 
+    /**
+     * Build a playthrough to set up hints.
+     *
+     * @param rng random object to use
+     * @param strategic true for "strategic" hints
+     * @return An array of treasures, in the order they should be hinted at
+     */
     private static byte[] buildPlaythrough(Random rng, boolean strategic) {
         List<Integer> inventory = new Vector<>();
         List<Integer> locationsChecked = new Vector<>();
@@ -585,7 +657,6 @@ public class Main {
         do {
             List<Integer> newItems = new Vector<>();
             gotItem = false;
-            System.out.println("--- SPHERE " + sphere + " ---");
             for (int i = 0; i < finalTreasures.length; i++) {
                 if (locationsChecked.contains(i)) continue;
                 if (canAccess(locationNames[i], inventory, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
@@ -596,7 +667,7 @@ public class Main {
                     for (int j = 0; j < worldMap.length; j++) {
                         if (worldMap[j] == i/4) level = j;
                     }
-                    System.out.println((inventory.size() + newItems.size()) + ". " + locationNames[i] + "(level " + level + "): item " + finalTreasures[i]);
+                    if (finalTreasures[i] == Items.TORCH) break;
                 }
             }
             Collections.shuffle(newItems, rng);
@@ -661,6 +732,9 @@ public class Main {
         return inventory.contains(Items.GOLD_GLOVES);
     }
 
+    /**
+     * Check if the given level can be entered in the daytime given the provided inventory, assuming it can be entered at all.
+     */
     private static boolean isDaytime(String location, List<Integer> inventory) {
         if (inventory.contains(Items.SUN_FRAGMENT_L) && inventory.contains(Items.SUN_FRAGMENT_R)) {
             return true;
@@ -697,8 +771,7 @@ public class Main {
      *                    that border using NEXT MAP
      *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
      *                    a treasure at that location
-     * @param forwardGPStart true if this is being called to place an item at the beginning of the sequence, and
-     *                        there is an overalls treasure at N1S (affects accessibility of N1R)
+     * @param adjusted if true, and location is a two-character level code, will not adjust for the effects of map shuffle
      */
     private static boolean canAccess(String location, List<Integer> inventory, boolean forwardGPStart, boolean adjusted) {
 
@@ -1175,9 +1248,7 @@ public class Main {
         }
         else if (location.equals("E2B")) {
             return canAccess("E2", inventory)
-                    && (canSuperSwim(inventory) || (
-                        inventory.contains(Items.SUN_FRAGMENT_L) && inventory.contains(Items.SUN_FRAGMENT_R)
-                    ));
+                    && (canSuperSwim(inventory) || isDaytime("E2",inventory));
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)

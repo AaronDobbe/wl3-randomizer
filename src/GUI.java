@@ -17,6 +17,15 @@ public class GUI extends JPanel implements ActionListener {
     private JScrollPane logScrollPane;
     private JTextField seedField;
 
+    private JCheckBox mapShuffleCheck;
+    private JCheckBox bossBoxCheck;
+    private JCheckBox axeStartCheck;
+    private JCheckBox excludeJunkCheck;
+
+    private ButtonGroup hintsButtonGroup;
+    private ButtonGroup musicButtonGroup;
+
+
     public GUI() {
         super(new GridBagLayout());
 
@@ -38,27 +47,102 @@ public class GUI extends JPanel implements ActionListener {
         JLabel seedLabel = new JLabel("Seed (blank for random):");
         seedField = new JTextField(11);
 
+        mapShuffleCheck = new JCheckBox("Shuffle world map");
+        bossBoxCheck = new JCheckBox("Bosses guard music boxes");
+        bossBoxCheck.setSelected(true);
+        axeStartCheck = new JCheckBox("Guarantee axe start");
+        excludeJunkCheck = new JCheckBox("Remove junk items");
+
+        JLabel hintsLabel = new JLabel("Temple hints:");
+        hintsButtonGroup = new ButtonGroup();
+
+        JLabel musicLabel = new JLabel("Music:");
+        musicButtonGroup = new ButtonGroup();
+
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(10,3,10,3);
         c.gridx = 0;
         c.gridy = 0;
-        c.gridwidth = 2;
+        c.gridwidth = 4;
         add(openButton, c);
 
         c.gridy = 1;
-        c.gridwidth = 1;
+        c.gridwidth = 2;
         add(seedLabel, c);
 
-        c.gridx = 1;
+        c.gridx = 2;
+        c.gridwidth = 2;
         add(seedField, c);
 
-        c.gridx = 0;
         c.gridy = 2;
+
+        c.gridx = 0;
         c.gridwidth = 2;
-        add(genButton, c);
+        add(mapShuffleCheck,c);
+
+        c.gridx = 2;
+        add(bossBoxCheck,c);
 
         c.gridy = 3;
+
+        c.gridx = 0;
+        add(axeStartCheck,c);
+        c.gridx = 2;
+        add(excludeJunkCheck,c);
+
+        c.gridy = 4;
+
+        c.gridx = 0;
+        c.gridwidth = 1;
+        add(hintsLabel,c);
+        c.gridx = 1;
+        c.gridwidth = 1;
+        JRadioButton hintsVanillaButton = new JRadioButton("Vanilla",false);
+        hintsVanillaButton.setActionCommand("vanilla");
+        hintsButtonGroup.add(hintsVanillaButton);
+        add(hintsVanillaButton,c);
+        c.gridx = 2;
+        JRadioButton hintsCorrectedButton = new JRadioButton("Corrected",true);
+        hintsButtonGroup.add(hintsCorrectedButton);
+        hintsCorrectedButton.setActionCommand("corrected");
+        add(hintsCorrectedButton,c);
+        c.gridx = 3;
+        JRadioButton hintsStrategicButton = new JRadioButton("Strategic",false);
+        hintsButtonGroup.add(hintsStrategicButton);
+        hintsStrategicButton.setActionCommand("strategic");
+        add(hintsStrategicButton,c);
+
+        c.gridy = 5;
+
+        c.gridx = 0;
+        c.gridwidth = 1;
+        add(musicLabel,c);
+        c.gridx = 1;
+        c.gridwidth = 1;
+        JRadioButton musicVanillaButton = new JRadioButton("Vanilla",false);
+        musicVanillaButton.setActionCommand("vanilla");
+        musicButtonGroup.add(musicVanillaButton);
+        add(musicVanillaButton,c);
+        c.gridx = 2;
+        JRadioButton musicShuffledButton = new JRadioButton("Shuffled",false);
+        musicButtonGroup.add(musicShuffledButton);
+        musicShuffledButton.setActionCommand("shuffled");
+        add(musicShuffledButton,c);
+        c.gridx = 3;
+        JRadioButton musicChaosButton = new JRadioButton("Chaos",true);
+        musicButtonGroup.add(musicChaosButton);
+        musicChaosButton.setActionCommand("chaos");
+        add(musicChaosButton,c);
+
+
+        c.gridy = 6;
+
+        c.gridx = 0;
+        c.gridwidth = 4;
+        add(genButton, c);
+
+        c.gridy = 7;
         add(logScrollPane, c);
     }
 
@@ -86,12 +170,12 @@ public class GUI extends JPanel implements ActionListener {
         }
         else if (e.getSource() == genButton) {
             Map<String,String> options = new HashMap<>();
-            options.put("bossBoxes","true");
-            options.put("music","chaos");
-            options.put("axeStart","false");
-            options.put("hints","normal");
-            options.put("excludeJunk","true");
-            options.put("mapShuffle","true");
+            options.put("bossBoxes",bossBoxCheck.isSelected() ? "true" : "false");
+            options.put("music",musicButtonGroup.getSelection().getActionCommand());
+            options.put("axeStart",axeStartCheck.isSelected() ? "true" : "false");
+            options.put("hints",hintsButtonGroup.getSelection().getActionCommand());
+            options.put("excludeJunk",excludeJunkCheck.isSelected() ? "true" : "false");
+            options.put("mapShuffle",mapShuffleCheck.isSelected() ? "true" : "false");
             Main.generateGame(seedField.getText(), options);
         }
     }
