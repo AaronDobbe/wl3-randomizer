@@ -19,7 +19,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.9.0";
+    private static final String VERSION = "v0.9.1";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -279,6 +279,7 @@ public class Main {
             do {
                 List<Integer> newItems = new Vector<>();
                 List<Integer> newCandidateLocations = new Vector<>();
+                List<Integer> newCheckedList = new Vector<>();
                 foundLocation = false;
                 for (int location = 0; location < treasures.size(); location++) {
                     if (checkedList.contains(location) || (bossBoxes > 0 && !bosses.contains(location))) {
@@ -286,7 +287,7 @@ public class Main {
                     }
                     if (canAccess(locationNames[location],curInventory)) {
                         foundLocation = true;
-                        checkedList.add(location);
+                        newCheckedList.add(location);
                         if (treasures.get(location) == null) {
                             newCandidateLocations.add(location);
                         }
@@ -295,15 +296,26 @@ public class Main {
                         }
                     }
                 }
-                if (!curInventory.contains(Items.AXE) && newItems.contains(Items.TORCH)) {
-                    // without the axe, we must have found the torch in level 0
-                    // take only the torch and restart scan (to avoid softlock potential)
-                    curInventory.add(Items.TORCH);
+                if (!curInventory.contains(Items.AXE)) {
+                    if (newItems.contains(Items.TORCH)) {
+                        // without the axe, we must have found the torch in level 0
+                        // take only the torch and restart scan (to avoid softlock potential)
+                        curInventory.add(Items.TORCH);
+                        checkedList.add(treasures.indexOf(Items.TORCH));
+                        continue;
+                    }
+                    else if (newItems.contains(Items.KEYSTONE_L) && newItems.contains(Items.KEYSTONE_R)) {
+                        // similarly, we want to avoid a rare softlock that could occur if we escape from N1 by heading west
+                        curInventory.add(Items.KEYSTONE_L);
+                        curInventory.add(Items.KEYSTONE_R);
+                        checkedList.add(treasures.indexOf(Items.KEYSTONE_L));
+                        checkedList.add(treasures.indexOf(Items.KEYSTONE_R));
+                        continue;
+                    }
                 }
-                else {
-                    curInventory.addAll(newItems);
-                    candidateLocations.addAll(newCandidateLocations);
-                }
+                curInventory.addAll(newItems);
+                candidateLocations.addAll(newCandidateLocations);
+                checkedList.addAll(newCheckedList);
             } while (foundLocation);
 
             if (candidateLocations.size() == 0) {
@@ -430,20 +442,29 @@ public class Main {
         }
         //boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
         for (Integer location : locations) {
-            boolean forwardGPStart = !leftInventory.contains(Items.AXE) && !leftInventory.contains(Items.TORCH);
+            boolean forwardGPStart = !leftInventory.contains(Items.AXE) && !leftInventory.contains(Items.TORCH) && !(leftInventory.contains(Items.KEYSTONE_L) && leftInventory.contains(Items.KEYSTONE_R));
             if (!canAccess(locationNames[location], leftInventory, forwardGPStart, false)) {
                 continue;
             }
 
             boolean forceTorch = false;
+            boolean forceKeys = false;
             if (forwardGPStart) {
                 // because of the possibility of multiple treasures being available in the first level of map shuffle,
                 // we need to be sure the player can't softlock by warping out with the torch before getting all
                 // treasures.
                 boolean torchFirst = false;
+                // same with the two keystones
+                int keystones = 0;
                 for (Integer item : rightInventory) {
                     if (item == Items.AXE) {
                         break;
+                    }
+                    else if (item == Items.KEYSTONE_L || item == Items.KEYSTONE_R) {
+                        keystones++;
+                        if (keystones == 2) {
+                            break;
+                        }
                     }
                     else if (item == Items.TORCH) {
                         torchFirst = true;
@@ -462,13 +483,28 @@ public class Main {
                         forceTorch = true;
                     }
                 }
+                else if (keystones == 2) {
+                    int levelIdx = (location / 4) * 4;
+                    int locationsLeft = 0;
+                    for (int i = levelIdx; i < levelIdx + 4; i++) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory)) {
+                            locationsLeft++;
+                        }
+                    }
+                    if (locationsLeft > 1) {
+                        forceKeys = true;
+                    }
+                }
             }
 
             for (Integer item : rightInventory) {
                 if (forceTorch && item != Items.TORCH) {
                     continue;
                 }
-                if (item == Items.TORCH && location/4 == worldMap[0] && treasures.indexOf(Items.AXE)/4 == worldMap[0]) {
+                else if (forceKeys && item != Items.KEYSTONE_R && item != Items.KEYSTONE_L) {
+                    continue;
+                }
+                else if (item == Items.TORCH && location/4 == worldMap[0] && treasures.indexOf(Items.AXE)/4 == worldMap[0]) {
                     continue;
                 }
                 List<Integer> nextLeftInventory = new Vector<>(leftInventory);
@@ -487,12 +523,16 @@ public class Main {
                     restartScan = false;
                     for (Integer checkLocation = 0; checkLocation < 100; checkLocation++) {
                         if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart, false)) {
-                            if (treasures.get(checkLocation) != null && !nextLeftInventory.contains(treasures.get(checkLocation))) {
-                                nextLeftInventory.add(treasures.get(checkLocation));
-                                restartScan = true;
-                                break;
+                            if (treasures.get(checkLocation) != null) {
+                                if (!nextLeftInventory.contains(treasures.get(checkLocation))) {
+                                    nextLeftInventory.add(treasures.get(checkLocation));
+                                    restartScan = true;
+                                    break;
+                                }
                             }
-                            locationsLeft++;
+                            else {
+                                locationsLeft++;
+                            }
                         }
                     }
                 } while (restartScan);
@@ -855,7 +895,7 @@ public class Main {
         }
 
         // check N1 node accessibility
-        if (inventory.contains(Items.TORCH)) {
+        if (inventory.contains(Items.TORCH) || (inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R))) {
             int falseIdx = "NWSE".indexOf(location.charAt(0)) * 6 + (Integer.parseInt(location.substring(1, 2)) - 1);
             if (worldMap[0] == falseIdx) {
                 if (!inventory.contains(Items.AXE)) {
