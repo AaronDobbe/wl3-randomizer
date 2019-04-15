@@ -19,7 +19,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.9.1";
+    private static final String VERSION = "v0.9.2";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -1321,7 +1321,7 @@ public class Main {
         }
         else if (location.equals("E4G")) {
             return canAccess("E4", inventory)
-                    && (isDaytime("E3", inventory)
+                    && (isDaytime("E4", inventory)
                     || (inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E4B")) {
