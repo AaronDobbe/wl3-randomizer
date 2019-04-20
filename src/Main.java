@@ -1079,7 +1079,7 @@ public class Main {
         }
         else if (location.equals("W4R")) {
             return canAccess("W4", inventory)
-                    && inventory.contains(Items.SPIKED_HELMET);
+                    && (inventory.contains(Items.SPIKED_HELMET) || (canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W4G")) {
             return canAccess("W4", inventory)
@@ -1297,8 +1297,7 @@ public class Main {
         }
         else if (location.equals("E3R")) {
             return canAccess("E3", inventory)
-                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory)))
-                    && (canSuperGP(inventory) || inventory.contains(Items.JUMP_BOOTS));
+                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory))));
         }
         else if (location.equals("E3G")) {
             return canAccess("E3", inventory)
