@@ -13,6 +13,9 @@ Download the randomizer at: https://github.com/AaronDobbe/wl3-randomizer/release
 4. Click the "Generate Randomized Game" button.
 5. A `.gbc` file will be created in the same directory as `wl3-randomizer.jar`. Open this file in a GBC emulator to play. ([bgb](http://bgb.bircd.org/) is highly recommended!)
 
+## I'm stuck!
+Some treasures can be acquired in unintuitive ways. Check out the ["Gotchas" doc](https://docs.google.com/document/d/1fYzp5uflcDFz836a_4Erpzw49fJjjvobjjyRKRJPWCQ/edit?usp=sharing) for a list of places where players often get stuck. However, if you really think you've found an impossible seed, be sure to report it!
+
 ## Racing
 If you plan to race the game with one or more opponents, to keep things fair, you should use the "Seed" function to ensure all players have the same randomized game. To do this:
 1. One player should generate a randomized game as above, with agreed-upon game options.
@@ -53,6 +56,7 @@ While the randomizer will never require you to use any glitches or difficult tri
 * Just because a level's "dot" isn't available on the world map doesn't mean you can't enter that level. For example, collecting the torch early allows you to walk to E4 The Colossal Hole and enter the level even though the hole itself hasn't appeared on the map.
 * Small barrels can be nudged around by slowly walking into them while crouching, allowing you to reposition them and use them as platforms even if you don't have any gloves.
 * If you're new to the game or even just new to the randomizer, try setting hints to "Corrected" and checking "Guarantee axe start" for your first few games. That way, if you get stuck, you can visit the Temple for direction on where to go.
+* The ["Gotchas" doc](https://docs.google.com/document/d/1fYzp5uflcDFz836a_4Erpzw49fJjjvobjjyRKRJPWCQ/edit?usp=sharing) has a list of places that players commonly get stuck - if you're having trouble proceeding, consider giving it a read!
 
 ## Discord
 The Wario Land 3 Randomizer has its own channel on the [Wario Series Speedruns Discord](https://discord.gg/gfrMAVv)! Join the discussion, find opponents to race, or just vent about being forced to visit Above the Clouds without any powerups. 
