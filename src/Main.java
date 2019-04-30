@@ -19,7 +19,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.9.2";
+    private static final String VERSION = "v0.10.0b";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -180,9 +180,71 @@ public class Main {
             }
         }
 
+        // randomize level palettes if requested
+        // 2336 numbers
+        int[] paletteSwitches = null;
+        if (true) { // TODO add GUI switch
+            // There are some sets of palettes that we want to ensure get the same transformation.
+            // This is usually because of rooms that cycle through palettes (e.g. N1 underground),
+            // or because of levels that change their palettes in response to Wario's inventory (e.g. S4)
+            int[][] associations = {{0x2,0x3,0x73,0x74},
+                                    {0x20,0x4a},
+                                    {0x23,0x70},
+                                    {0x24,0x58,0x59},
+                                    {0x2b,0x6c},
+                                    {0x2f,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c},
+                                    {0x31,0x55,0x56,0x57,0x5e,0x5f,0x60},
+                                    {0x44,0x7d,0x7e,0x7f,0x80,0x81,0x82,0x83},
+                                    {0x45,0x84,0x85,0x86,0x87,0x88,0x89,0x8a},
+                                    {0x46,0x8b,0x8c,0x8d,0x8e,0x8f,0x90,0x91},
+                                    {0x4b,0x4c},
+                                    {0x5a,0x5b,0x5c},
+                                    {0x65,0x66,0x67},
+                                    {0x68,0x69,0x6a},
+                                    {0x6d,0x6e},
+                                    {0x71,0x72}};
+            int[][] assocSwitches = new int[associations.length][8];
+            for (int i = 0; i < assocSwitches.length; i++) {
+                for (int j = 0; j < assocSwitches[i].length; j++) {
+                    assocSwitches[i][j] = -1;
+                }
+            }
+
+            paletteSwitches = new int[1168];
+            for (int i = 0; i < paletteSwitches.length; i++) {
+                int assocIdx = -1;
+                for (int x = 0; x < associations.length; x++) {
+                    for (int y = 0; y < associations[x].length; y++) {
+                        if (associations[x][y] == i/8) {
+                            assocIdx = x;
+                        }
+                    }
+                }
+                if (assocIdx > -1 && assocSwitches[assocIdx][i%8] != -1) {
+                    paletteSwitches[i] = assocSwitches[assocIdx][i%8];
+                    continue;
+                }
+//                paletteSwitches[i] = rng.nextInt(3)+1;
+                paletteSwitches[i] = rng.nextInt(100000);
+                if (assocIdx > -1) {
+                    assocSwitches[assocIdx][i%8] = paletteSwitches[i];
+                }
+            }
+        }
+
+        int[] objColors = null;
+        // randomize object palettes if requested
+        // 472 numbers + 1 for keys/chests
+        if (true) { // TODO: add GUI switch
+            objColors = new int[480];
+            for (int i = 0; i < objColors.length; i++) {
+                objColors[i] = rng.nextInt(100000);
+            }
+        }
+
         // patch vanilla ROM file and create randomized ROM
         try {
-            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, mapShuffle ? worldMap : null, VERSION);
+            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, mapShuffle ? worldMap : null, paletteSwitches, objColors, VERSION);
         } catch (IOException e) {
             gui.log("Error occurred while generating randomized game: " + e.getMessage());
             return;
@@ -1297,7 +1359,7 @@ public class Main {
         }
         else if (location.equals("E3R")) {
             return canAccess("E3", inventory)
-                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory))));
+                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory)));
         }
         else if (location.equals("E3G")) {
             return canAccess("E3", inventory)

@@ -1,9 +1,11 @@
 import com.google.gson.*;
 
+import java.awt.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 
 public class Patcher {
 
@@ -17,7 +19,7 @@ public class Patcher {
      * @param version         String representing current app version
      * @throws IOException    if something goes wrong reading from or writing to a ROM
      */
-    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, Integer[] worldMap, String version) throws IOException {
+    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, Integer[] worldMap, int[] paletteSwitches, int[] objColors, String version) throws IOException {
         Path vanillaPath = new File(vanillaPathStr).toPath();
         byte[] romBytes = Files.readAllBytes(vanillaPath);
         romBytes = applyPatch(romBytes, "baseDiff.json");
@@ -30,6 +32,12 @@ public class Patcher {
         }
         if (worldMap != null) {
             romBytes = mapPatch(romBytes, worldMap);
+        }
+        if (paletteSwitches != null) {
+            romBytes = shuffleBGPalettes(romBytes,paletteSwitches);
+        }
+        if (objColors != null) {
+            romBytes = shuffleObjPalettes(romBytes, objColors);
         }
         savePatchedFile(romBytes, seed, version);
     }
@@ -340,6 +348,214 @@ public class Patcher {
             romBytes[outIdx + compressedNames.size() + 1] = (byte) 0x7f;
         }
 
+        return romBytes;
+    }
+
+    private static byte[] shuffleBGPalettes(byte[] romBytes, int[] switches) {
+        // c0b1b = start of table, +C8000
+        int tableIdx = 0xc0b1b;
+        int palIdx = 0xc8000;
+        for (int i = 0; i < switches.length; i += 8) {
+            int offset = ((romBytes[tableIdx+(i/4)+1] & 0xff) << 8) + (romBytes[tableIdx+(i/4)] & 0xff);
+            for (int j = 0; j < 64; j += 8) {
+                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i+j/8], false);
+//                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i + 1]);
+//                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i + 2]);
+            }
+        }
+        return romBytes;
+    }
+
+    private static byte[] shuffleObjPalettes(byte[] romBytes, int[] colors) {
+        int idx = 0x65251;
+        int offset = 0;
+        int colorIdx = 8;
+        while (colorIdx < colors.length) {
+            offset += 9; // skip object gfx pointers
+            // look for terminating pointer in object list
+            while ((romBytes[idx+offset] & 0xff) != 0xff || (romBytes[idx+offset+1] & 0xff) != 0xff) {
+                offset += 2;
+            }
+            offset += 2; // now we're looking at object palettes!
+            for (int i = 0; i < 4; i++) {
+                romBytes = swapColors(romBytes,idx+offset,colors[colorIdx], false);
+                offset += 8;
+                colorIdx++;
+            }
+        }
+
+        // now apply one color rotation to all four key/chest palettes
+        romBytes = swapColors(romBytes,0x64fc9, colors[0], true);
+        romBytes = swapColors(romBytes,0x64fd7, colors[0], false);
+        romBytes = swapColors(romBytes,0x64fe5, colors[0], false);
+        romBytes = swapColors(romBytes,0x64ff3, colors[0], false);
+
+        // rotate rudy's colors
+        romBytes = swapColors(romBytes,0xdb000,colors[1],false);
+        romBytes = swapColors(romBytes,0xdb008,colors[1],false);
+        romBytes = swapColors(romBytes,0xdb010,colors[1],false);
+        romBytes = swapColors(romBytes,0xdb018,colors[1],false);
+        romBytes = swapColors(romBytes,0xdb020,colors[2],false);
+        romBytes = swapColors(romBytes,0xdb028,colors[3],false);
+        romBytes = swapColors(romBytes,0xdb030,colors[4],false);
+        romBytes = swapColors(romBytes,0xdb038,colors[5],false);
+        romBytes = swapColors(romBytes,0xdb040,colors[6],false);
+        romBytes = swapColors(romBytes,0xdb048,colors[1],false);
+        romBytes = swapColors(romBytes,0xdb050,colors[7],false);
+        romBytes = swapColors(romBytes,0xdb058,colors[7],false);
+        romBytes = swapColors(romBytes,0xdb060,colors[7],false);
+
+        romBytes = swapColors(romBytes,0x4d01b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d023,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d02b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d033,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d03b,colors[2],false);
+        romBytes = swapColors(romBytes,0x4d043,colors[3],false);
+
+        romBytes = swapColors(romBytes,0x4d04b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d053,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d05b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d063,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d06b,colors[2],false);
+        romBytes = swapColors(romBytes,0x4d073,colors[3],false);
+
+        romBytes = swapColors(romBytes,0x4d07b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d083,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d08b,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d093,colors[1],false);
+        romBytes = swapColors(romBytes,0x4d09b,colors[2],false);
+        romBytes = swapColors(romBytes,0x4d0a3,colors[3],false);
+
+        // need to clean up a few colors for rudy
+        romBytes[0xdb020] = romBytes[0xdb000];
+        romBytes[0xdb021] = romBytes[0xdb001];
+        romBytes[0xdb024] = romBytes[0xdb02c];
+        romBytes[0xdb025] = romBytes[0xdb02d];
+        romBytes[0xdb028] = romBytes[0xdb000];
+        romBytes[0xdb029] = romBytes[0xdb001];
+
+        romBytes[0x4d03b] = romBytes[0x4d01b];
+        romBytes[0x4d03c] = romBytes[0x4d01c];
+        romBytes[0x4d03f] = romBytes[0x4d047];
+        romBytes[0x4d040] = romBytes[0x4d048];
+        romBytes[0x4d043] = romBytes[0x4d01b];
+        romBytes[0x4d044] = romBytes[0x4d01c];
+
+        romBytes[0x4d06b] = romBytes[0x4d04b];
+        romBytes[0x4d06c] = romBytes[0x4d04c];
+        romBytes[0x4d06f] = romBytes[0x4d077];
+        romBytes[0x4d070] = romBytes[0x4d078];
+        romBytes[0x4d073] = romBytes[0x4d04b];
+        romBytes[0x4d074] = romBytes[0x4d04c];
+
+        romBytes[0x4d09b] = romBytes[0x4d07b];
+        romBytes[0x4d09c] = romBytes[0x4d07c];
+        romBytes[0x4d09f] = romBytes[0x4d0a7];
+        romBytes[0x4d0a0] = romBytes[0x4d0a8];
+        romBytes[0x4d0a3] = romBytes[0x4d07b];
+        romBytes[0x4d0a4] = romBytes[0x4d07c];
+
+
+
+        // set menu key colors to match real key colors
+        romBytes[0x1f41de] = romBytes[0x64fcd];
+        romBytes[0x1f41df] = romBytes[0x64fce];
+        romBytes[0x1e03aa] = romBytes[0x64fcd];
+        romBytes[0x1e03ab] = romBytes[0x64fce];
+        romBytes[0x1e042a] = romBytes[0x64fcd];
+        romBytes[0x1e042b] = romBytes[0x64fce];
+
+        romBytes[0x1f41e0] = romBytes[0x64fdb];
+        romBytes[0x1f41e1] = romBytes[0x64fdc];
+        romBytes[0x1e03ac] = romBytes[0x64fdb];
+        romBytes[0x1e03ad] = romBytes[0x64fdc];
+        romBytes[0x1e042c] = romBytes[0x64fdb];
+        romBytes[0x1e042d] = romBytes[0x64fdc];
+
+        romBytes[0x1f41e6] = romBytes[0x64fe9];
+        romBytes[0x1f41e7] = romBytes[0x64fea];
+        romBytes[0x1e03b2] = romBytes[0x64fe9];
+        romBytes[0x1e03b3] = romBytes[0x64fea];
+        romBytes[0x1e0432] = romBytes[0x64fe9];
+        romBytes[0x1e0433] = romBytes[0x64fea];
+
+        romBytes[0x1f41e8] = romBytes[0x64ff7];
+        romBytes[0x1f41e9] = romBytes[0x64ff8];
+        romBytes[0x1e03b4] = romBytes[0x64ff7];
+        romBytes[0x1e03b5] = romBytes[0x64ff8];
+        romBytes[0x1e0434] = romBytes[0x64ff7];
+        romBytes[0x1e0435] = romBytes[0x64ff8];
+
+        return romBytes;
+    }
+
+    private static byte[] HSVtoGBC(float hue, float sat, float val) {
+        int color = Color.HSBtoRGB(hue, sat, val);
+        int b = (color & 0xFF) >>> 3;
+        int g = (color & 0xFF00) >>> 11;
+        int r = (color & 0xFF0000) >>> 19;
+        color = (b << 10) + (g << 5) + r;
+        byte[] retBytes = new byte[2];
+        retBytes[0] = (byte)(color & 0xff);
+        retBytes[1] = (byte)((color & 0xff00) >>> 8);
+        return retBytes;
+    }
+
+    private static byte[] swapColors(byte[] romBytes, int idx, int swap, boolean grayKey) {
+        for (int i = 0; i < 8; i += 2) {
+            int pal = ((romBytes[idx+i+1] & 0xff) << 8) + (romBytes[idx+i] & 0xff);
+            int b = (pal & 0x7c00) >>> 10;
+            int g = (pal & 0x3e0) >>> 5;
+            int r = (pal & 0x1f);
+
+//            int sb = (swap & 0x7c00) >>> 10;
+//            int sg = (swap & 0x3e0) >>> 5;
+//            int sr = (swap & 0x1f);
+//
+//            b -= (b - sb) * 80 / 100;
+//            g -= (g - sb) * 80 / 100;
+//            r -= (r - sr) * 80 / 100;
+
+            float[] hsv = Color.RGBtoHSB(r*8, g*8, b*8, null);
+            if (grayKey) {
+                hsv[0] = 0.7778f;
+                if (i == 2) {
+                    hsv[1] = 0.32f;
+                    hsv[2] = 0.97f;
+                }
+                else if (i == 4) {
+                    hsv[1] = 1.0f;
+                    hsv[2] = 0.5f;
+                }
+            }
+            pal = Color.HSBtoRGB(hsv[0] + (float)(swap)/100000.0f,hsv[1],hsv[2]);
+            b = (pal & 0xFF) >>> 3;
+            g = (pal & 0xFF00) >>> 11;
+            r = (pal & 0xFF0000) >>> 19;
+
+//            int temp;
+//            switch (swap) {
+//                case 0:
+//                    break;
+//                case 1:
+//                    temp = b;
+//                    b = g;
+//                    g = temp;
+//                    break;
+//                case 2:
+//                    temp = r;
+//                    r = g;
+//                    g = temp;
+//                    break;
+//                case 3:
+//                    temp = r;
+//                    r = b;
+//                    b = temp;
+//            }
+            pal = (b << 10) + (g << 5) + r;
+            romBytes[idx+i] = (byte)(pal & 0xff);
+            romBytes[idx+i+1] = (byte)((pal & 0xff00) >>> 8);
+        }
         return romBytes;
     }
 
