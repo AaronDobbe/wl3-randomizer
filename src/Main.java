@@ -1,8 +1,10 @@
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import keyshuffle.KeyLocation;
+import keyshuffle.Level;
+
 import javax.swing.*;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -13,13 +15,17 @@ public class Main {
 
     private static Integer[] worldMap;
 
+    private static Level[] allKeyLocations;
+    private static Level[] finalKeyLocations;
+    private static boolean keyShuffle;
+
     private static int fails = 0;
 
     private static String vanillaFileLocation;
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.10.0b";
+    private static final String VERSION = "v0.10.0";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -59,6 +65,44 @@ public class Main {
             treasures.add(null);
         }
         finalTreasures = new int[100];
+        finalKeyLocations = new Level[25];
+        keyShuffle = options.containsKey("keyShuffle") && "true".equals(options.get("keyShuffle"));
+
+        try {
+            // load list of all potential key locations
+            allKeyLocations = new Level[25];
+            Gson gson = new GsonBuilder().create();
+            InputStream baseDiff = Main.class.getResourceAsStream("/keyshuffle/keyLocations.json");
+            BufferedReader br = new BufferedReader(new InputStreamReader(baseDiff));
+            String keyLocStr = br.readLine();
+            br.close();
+            allKeyLocations = gson.fromJson(keyLocStr,allKeyLocations.getClass());
+        } catch (IOException e) {
+            gui.log(e.getMessage());
+        }
+        List<Level> levelList = new ArrayList<>();
+        if (keyShuffle) {
+            // init list of empty levels
+            for (int i = 0; i < 25; i++) {
+                levelList.add(new Level(i, locationNames[i * 4].substring(0, 2)));
+            }
+        }
+        else {
+            try {
+                // init list of levels with vanilla key placements
+                Gson gson = new GsonBuilder().create();
+                InputStream baseDiff = Main.class.getResourceAsStream("keyshuffle/keyLocations_vanilla.json");
+                BufferedReader br = new BufferedReader(new InputStreamReader(baseDiff));
+
+                String keyLocStr = br.readLine();
+                br.close();
+                Level[] levelArray = new Level[25];
+                levelArray = gson.fromJson(keyLocStr,levelArray.getClass());
+                levelList = Arrays.asList(levelArray);
+            } catch (IOException e) {
+                gui.log(e.getMessage());
+            }
+        }
 
         List<Integer> mapList = new ArrayList<Integer>();
         for (int i = 0; i < 25; i++) {
@@ -70,6 +114,7 @@ public class Main {
         List<Integer> pureInventory = new ArrayList<>(inventory);
         List<Integer> pureLocations = new ArrayList<>(locations);
         List<Integer> pureMapList = new ArrayList<>(mapList);
+        List<Level> pureLevelList = cloneLevelList(levelList);
 
         // Set up the random object
         Random seedRNG = new Random();
@@ -101,6 +146,20 @@ public class Main {
 
         worldMap = mapList.toArray(new Integer[25]);
 
+        List<List<Integer>> keyIndexes = null;
+        if (keyShuffle) {
+            // prepare key index (ordered list of locations per level where keys will be attempted to be placed)
+            keyIndexes = new ArrayList<>();
+            for (int i = 0; i < 25; i++) {
+                List<Integer> subIndex = new ArrayList<>();
+                for (int j = 0; j < 12; j++) {
+                    subIndex.add(j);
+                }
+                Collections.shuffle(subIndex,rng);
+                keyIndexes.add(subIndex);
+            }
+        }
+
         List<Integer> leftInventory = new Vector<>();
         boolean axeStart = options.containsKey("axeStart") && options.get("axeStart").equals("true");
         if (axeStart) {
@@ -110,12 +169,16 @@ public class Main {
             leftInventory.add(Items.AXE);
             Collections.replaceAll(treasures,Items.AXE,null);
             treasures.set(worldMap[0]*4, Items.AXE);
+            if (keyShuffle) {
+                // also place gray key
+                placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
+            }
         }
         int numFails=0;
         // attempt to place treasures
         boolean bossBoxes = options.containsKey("bossBoxes") && options.get("bossBoxes").equals("true");
-        while ((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, 5))
-                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures))) {
+        while (((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, levelList, keyIndexes, 5))
+                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures, levelList, keyIndexes)))) {
             // could not finish in reasonable time
             // if no user seed provided, generate a new seed and re-randomize using that
             if (userSeed != null && userSeed.length() > 0) {
@@ -129,18 +192,35 @@ public class Main {
             inventory = new ArrayList<>(pureInventory);
             locations = new ArrayList<>(pureLocations);
             mapList = new ArrayList<>(pureMapList);
+            levelList = cloneLevelList(pureLevelList);
             Collections.shuffle(inventory, rng);
             Collections.shuffle(locations, rng);
             if (mapShuffle) {
                 mapList = shuffleMap(mapList,rng);
             }
             worldMap = mapList.toArray(new Integer[25]);
+
+            if (keyShuffle) {
+                keyIndexes = new ArrayList<>();
+                for (int i = 0; i < 25; i++) {
+                    List<Integer> subIndex = new ArrayList<>();
+                    for (int j = 0; j < 12; j++) {
+                        subIndex.add(j);
+                    }
+                    Collections.shuffle(subIndex,rng);
+                    keyIndexes.add(subIndex);
+                }
+            }
+
             if (axeStart) {
                 inventory.remove(new Integer(Items.AXE));
                 locations.remove(new Integer(worldMap[0]*4));
                 leftInventory.add(Items.AXE);
                 Collections.replaceAll(treasures,Items.AXE,null);
                 treasures.set(worldMap[0]*4, Items.AXE);
+                if (keyShuffle) {
+                    placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
+                }
             }
             fails = 0;
         }
@@ -183,7 +263,7 @@ public class Main {
         // randomize level palettes if requested
         // 2336 numbers
         int[] paletteSwitches = null;
-        if (true) { // TODO add GUI switch
+        if (options.containsKey("levelColors") && "true".equals(options.get("levelColors"))) {
             // There are some sets of palettes that we want to ensure get the same transformation.
             // This is usually because of rooms that cycle through palettes (e.g. N1 underground),
             // or because of levels that change their palettes in response to Wario's inventory (e.g. S4)
@@ -224,7 +304,6 @@ public class Main {
                     paletteSwitches[i] = assocSwitches[assocIdx][i%8];
                     continue;
                 }
-//                paletteSwitches[i] = rng.nextInt(3)+1;
                 paletteSwitches[i] = rng.nextInt(100000);
                 if (assocIdx > -1) {
                     assocSwitches[assocIdx][i%8] = paletteSwitches[i];
@@ -234,17 +313,72 @@ public class Main {
 
         int[] objColors = null;
         // randomize object palettes if requested
-        // 472 numbers + 1 for keys/chests
-        if (true) { // TODO: add GUI switch
+        if (options.containsKey("enemyColors") && "true".equals(options.get("enemyColors"))) {
             objColors = new int[480];
             for (int i = 0; i < objColors.length; i++) {
                 objColors[i] = rng.nextInt(100000);
             }
         }
 
+        // randomize key/chest palettes
+        int[] chestColors = null;
+        if (options.containsKey("chestColors") && "true".equals(options.get("chestColors"))) {
+            // pick four each of hue, sat, val values that are distinct
+            chestColors = new int[12];
+            for (int set = 0; set < 3; set++) {
+                for (int val = 0; val < 4; val++) {
+                    int candidate = 0;
+                    boolean ok = false;
+                    while (!ok) {
+                        if (set == 1) {
+                            candidate = rng.nextInt(70000) + 30000;
+                        }
+                        else if (set == 2) {
+                            candidate = rng.nextInt(50000) + 50000;
+                        }
+                        else {
+                            candidate = rng.nextInt(100000);
+                        }
+                        ok = true;
+                        for (int i = 0; i < val; i++) {
+                            if (Math.abs(candidate - chestColors[set*4 + i]) < (set == 0 ? 10000 : 8750)) {
+                                ok = false;
+                                break;
+                            }
+                            else if (set == 0 && (Math.abs(((candidate+50000)%100000) - ((chestColors[set*4 + i]+50000)%100000)) < 10000)) {
+                                ok = false;
+                                break;
+                            }
+                        }
+                    }
+                    chestColors[set*4 + val] = candidate;
+                }
+            }
+        }
+
+        // randomize golf if requested
+        Integer[] golfOrder = null;
+        if (options.containsKey("golfShuffle") && "true".equals(options.get("golfShuffle"))) {
+            golfOrder = shuffleGolf(rng);
+        }
+
+        boolean cutsceneSkip = options.containsKey("cutsceneSkip") && "true".equals(options.get("cutsceneSkip"));
+
         // patch vanilla ROM file and create randomized ROM
         try {
-            Patcher.patch(vanillaFileLocation,finalTreasures,encodeSeed(seed), playthrough, music, mapShuffle ? worldMap : null, paletteSwitches, objColors, VERSION);
+            Patcher.patch(vanillaFileLocation,
+                    finalTreasures,
+                    encodeSeed(seed),
+                    playthrough,
+                    music,
+                    mapShuffle ? worldMap : null,
+                    paletteSwitches,
+                    objColors,
+                    chestColors,
+                    keyShuffle ? finalKeyLocations : null,
+                    golfOrder,
+                    cutsceneSkip,
+                    VERSION);
         } catch (IOException e) {
             gui.log("Error occurred while generating randomized game: " + e.getMessage());
             return;
@@ -311,10 +445,12 @@ public class Main {
      * @param rightInventory Items yet to be placed anywhere.
      * @param locations      Locations without treasure.
      * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
+     * @param levelList      List of levels and their current key placements.
+     * @param keyIndexes     For each level, the order of locations in which key placements should be attempted
      * @param bossBoxes      Number of music boxes to give to bosses
      * @return true if all items were placed successfully, false otherwise
      */
-    private static boolean placeItemsAssumed(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, int bossBoxes) {
+    private static boolean placeItemsAssumed(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, List<Level> levelList, List<List<Integer>> keyIndexes, int bossBoxes) {
         Integer[] bossArray = {
                 3,  // anonster
                 14, // pesce
@@ -347,10 +483,21 @@ public class Main {
                     if (checkedList.contains(location) || (bossBoxes > 0 && !bosses.contains(location))) {
                         continue;
                     }
-                    if (canAccess(locationNames[location],curInventory)) {
+                    if (canAccess(locationNames[location],curInventory,levelList)) {
                         foundLocation = true;
                         newCheckedList.add(location);
                         if (treasures.get(location) == null) {
+                            if (keyShuffle) {
+                                // try and place a key; if we can't, we can't get this treasure
+                                List<Level> nextLevelList = cloneLevelList(levelList);
+                                int levelNum = location / 4;
+                                Level level = nextLevelList.get(levelNum);
+                                int keyNum = location % 4;
+                                List<Integer> subIndexes = keyIndexes.get(levelNum);
+                                if (!placeKey(level,levelNum,keyNum,subIndexes,curInventory)) {
+                                    continue;
+                                }
+                            }
                             newCandidateLocations.add(location);
                         }
                         else {
@@ -388,6 +535,20 @@ public class Main {
 
             for (int location : locations) {
                 if (candidateLocations.contains(location)) {
+                    List<Level> nextLevelList = levelList;
+                    if (keyShuffle) {
+                        // place key
+                        nextLevelList = cloneLevelList(levelList);
+                        int levelNum = location / 4;
+                        Level level = nextLevelList.get(levelNum);
+                        int keyNum = location % 4;
+                        List<Integer> subIndexes = keyIndexes.get(levelNum);
+                        if (!placeKey(level,levelNum,keyNum,subIndexes,curInventory)) {
+                            continue;
+                        }
+                    }
+
+
                     List<Integer> nextTreasures = new Vector<>(treasures);
                     List<Integer> nextLocations = new Vector<>(locations);
                     nextLocations.remove(new Integer(location));
@@ -398,15 +559,26 @@ public class Main {
                                 finalTreasures[i] = nextTreasures.get(i);
                             }
                         }
+                        for (int i = 0; i < finalKeyLocations.length; i++) {
+                            finalKeyLocations[i] = nextLevelList.get(i);
+                            for (int j = 0; j < 4; j++) {
+                                if (finalKeyLocations[i].getLocation(j) == null) {
+                                    boolean success = placeKey(finalKeyLocations[i],i,j,keyIndexes.get(i),nextTreasures);
+                                    if (!success) {
+                                        return false; // this shouldn't happen!
+                                    }
+                                }
+                            }
+                        }
                         return true;
                     }
-                    else if (bossBoxes > 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures,bossBoxes-1)) {
+                    else if (bossBoxes > 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes, bossBoxes-1)) {
                         return true;
                     }
-                    else if (bossBoxes == 1 && placeItemsLeft(leftInventory, nextRightInventory, nextLocations, nextTreasures)) {
+                    else if (bossBoxes == 1 && placeItemsLeft(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes)) {
                         return true;
                     }
-                    else if (bossBoxes < 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, 0)) {
+                    else if (bossBoxes < 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes, 0)) {
                         return true;
                     }
                     fails++;
@@ -418,72 +590,38 @@ public class Main {
     }
 
     /**
-     * Place an item from rightInventory at the end of the sequence, then call placeItemsLeft if there are items left to place.
+     * Place the requested color key in a given level, so that it can be acquired with the given inventory.
      *
-     * @deprecated in favor of placeItemsAssumed, which uses new logic for a more even lategame fill.
+     * @param level      Level object representing the current state of the level.
+     * @param levelNum   Level number from 0-24 representing which in-game level this is.
+     * @param keyNum     Key number from 0-3; 0 = gray, 1 = red, 2 = green, 3 = blue
+     * @param subIndexes This level's entry in the key index; the order in which to attempt key locations
+     * @param inventory  The items Wario currently has
      *
-     * @param leftInventory  Items already placed at the beginning of the sequence.
-     * @param rightInventory Items yet to be placed anywhere.
-     * @param locations      Locations without treasure.
-     * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
-     * @return true if all items were placed successfully, false otherwise
+     * @return true if a key was successfully placed
      */
-    private static boolean placeItemsRight(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures) {
-        List<Integer> mergedInventory = new Vector<>(rightInventory);
-        mergedInventory.addAll(leftInventory);
-        int curLocations = 0;
-        for (Integer checkLocation : locations) {
-            if (treasures.get(checkLocation) == null && canAccess(locationNames[checkLocation], mergedInventory)) {
-                curLocations++;
+    private static boolean placeKey(Level level, int levelNum, int keyNum, List<Integer> subIndexes, List<Integer> inventory) {
+        for (Integer index : subIndexes) {
+            KeyLocation candidate = allKeyLocations[levelNum].getLocation(index);
+            int region = candidate.getRegion();
+
+            int location = candidate.getSubLocation();
+
+            boolean clash = false;
+            for (int i = 0; i < 4; i++) {
+                if (level.getLocation(i) != null && level.getLocation(i).getRegion() == region) {
+                    clash = true;
+                    break;
+                }
             }
-        }
-        for (Integer location : locations) {
-            if (!canAccess(locationNames[location], mergedInventory)) {
-                continue;
-            }
 
-            for (Integer item : rightInventory) {
-                List<Integer> nextRightInventory = new Vector<>(rightInventory);
-                nextRightInventory.remove(item);
-                List<Integer> nextInventory = new Vector<>(nextRightInventory);
-                nextInventory.addAll(leftInventory);
-
-                if (location == 0 && nextInventory.size() > 0) {
-                    continue;
-                }
-                if (!canAccess(locationNames[location], nextInventory)) {
-                    continue;
-                }
-                List<Integer> nextTreasures = new Vector<>(treasures);
-                List<Integer> nextLocations = new Vector<>();
-                nextTreasures.set(location, item);
-                int locationsLeft = 0;
-                for (Integer checkLocation : locations) {
-                    if (!checkLocation.equals(location) && treasures.get(checkLocation) == null && canAccess(locationNames[checkLocation], nextInventory)) {
-                        locationsLeft++;
-                        nextLocations.add(checkLocation);
-                    }
-                }
-
-                if (locationsLeft < nextRightInventory.size()) {
-                    fails++;
-                    continue;
-                }
-                if (nextRightInventory.size() == 0) {
-                    for (int i = 0; i < nextTreasures.size(); i++) {
-                        if (nextTreasures.get(i) != null) {
-                            finalTreasures[i] = nextTreasures.get(i);
-                        }
-                    }
+            if (!clash) {
+                if ((canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,true, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,true)) ||
+                        (canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,false, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,false))) {
+                    level.setLocation(keyNum, candidate);
+                    level.setInventory(keyNum, inventory);
                     return true;
                 }
-                else if (placeItemsLeft(leftInventory, nextRightInventory, nextLocations, nextTreasures)) {
-                    return true;
-                }
-                else if (fails > 40000) {
-                    return false;
-                }
-
             }
         }
         return false;
@@ -496,17 +634,27 @@ public class Main {
      * @param rightInventory Items yet to be placed anywhere.
      * @param locations      Locations without treasure.
      * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
+     * @param levelList      List of levels and their current key placements.
+     * @param keyIndexes     For each level, the order of locations in which key placements should be attempted
+     *
      * @return true if all items were placed successfully, false otherwise
      */
-    private static boolean placeItemsLeft(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures) {
-        if (fails >= 500) {
+    private static boolean placeItemsLeft(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, List<Level> levelList, List<List<Integer>> keyIndexes) {
+        if (fails >= (keyShuffle ? 500 : 500)) {
             return false;
         }
         //boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
         for (Integer location : locations) {
             boolean forwardGPStart = !leftInventory.contains(Items.AXE) && !leftInventory.contains(Items.TORCH) && !(leftInventory.contains(Items.KEYSTONE_L) && leftInventory.contains(Items.KEYSTONE_R));
-            if (!canAccess(locationNames[location], leftInventory, forwardGPStart, false)) {
+            if (!canAccess(locationNames[location], leftInventory, levelList, forwardGPStart, false)) {
                 continue;
+            }
+            List<Level> nextLevelList = levelList;
+            if (keyShuffle) {
+                nextLevelList = cloneLevelList(levelList);
+                if (!placeKey(cloneLevelList(levelList).get(location / 4), location / 4, location % 4, keyIndexes.get(location / 4), leftInventory)) {
+                    continue;
+                }
             }
 
             boolean forceTorch = false;
@@ -537,7 +685,7 @@ public class Main {
                     int levelIdx = (location / 4) * 4;
                     int locationsLeft = 0;
                     for (int i = levelIdx; i < levelIdx + 4; i++) {
-                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory)) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory, levelList)) {
                             locationsLeft++;
                         }
                     }
@@ -549,7 +697,7 @@ public class Main {
                     int levelIdx = (location / 4) * 4;
                     int locationsLeft = 0;
                     for (int i = levelIdx; i < levelIdx + 4; i++) {
-                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory)) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory, levelList)) {
                             locationsLeft++;
                         }
                     }
@@ -577,20 +725,30 @@ public class Main {
                 List<Integer> nextLocations = new Vector<>(locations);
                 nextTreasures.set(location, item);
                 nextLocations.remove(location);
-//                forwardGPStart = !nextLeftInventory.contains(Items.AXE) && !nextLeftInventory.contains(Items.TORCH);
+                if (keyShuffle) {
+                    // also place the appropriate key
+                    nextLevelList = cloneLevelList(levelList);
+                    if (!placeKey(nextLevelList.get(location / 4), location / 4, location % 4, keyIndexes.get(location / 4), leftInventory)) {
+                        continue;
+                    }
+                }
+
                 int locationsLeft;
                 boolean restartScan;
                 do {
                     locationsLeft = 0;
                     restartScan = false;
                     for (Integer checkLocation = 0; checkLocation < 100; checkLocation++) {
-                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, forwardGPStart, false)) {
+                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, nextLevelList, forwardGPStart, false)) {
                             if (treasures.get(checkLocation) != null) {
                                 if (!nextLeftInventory.contains(treasures.get(checkLocation))) {
                                     nextLeftInventory.add(treasures.get(checkLocation));
                                     restartScan = true;
                                     break;
                                 }
+                            }
+                            else if (keyShuffle && !placeKey(cloneLevelList(nextLevelList).get(checkLocation/4),checkLocation/4,checkLocation%4,keyIndexes.get(checkLocation / 4),nextLeftInventory)) {
+                                // do nothing
                             }
                             else {
                                 locationsLeft++;
@@ -607,15 +765,26 @@ public class Main {
                             finalTreasures[i] = nextTreasures.get(i);
                         }
                     }
+                    for (int i = 0; i < finalKeyLocations.length; i++) {
+                        finalKeyLocations[i] = nextLevelList.get(i);
+                        for (int j = 0; j < 4; j++) {
+                            if (finalKeyLocations[i].getLocation(j) == null) {
+                                boolean success = placeKey(finalKeyLocations[i],i,j,keyIndexes.get(i),nextTreasures);
+                                if (!success) {
+                                    return false; // this shouldn't happen!
+                                }
+                            }
+                        }
+                    }
                     return true;
                 }
-                else if (nextRightInventory.size() < 60 && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures, 0)) {
+                else if (nextRightInventory.size() < 60 && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures,nextLevelList,keyIndexes, 0)) {
                     return true;
                 }
-                else if (nextRightInventory.size() >= 60 && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures)) {
+                else if ((nextRightInventory.size() >= 60) && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures,nextLevelList,keyIndexes)) {
                     return true;
                 }
-                else if (fails > 500) {
+                else if (fails >= (keyShuffle ? 500 : 500)) {
                     return false;
                 }
             }
@@ -680,6 +849,21 @@ public class Main {
         shuffledMap.remove(firstLevel);
         shuffledMap.insertElementAt(firstLevel,0);
         return shuffledMap;
+    }
+
+    /**
+     * Shuffle golf courses.
+     *
+     * @param rng  Seeded random object to use
+     * @return an array of Integers representing the order in which golf courses should be shuffled
+     */
+    private static Integer[] shuffleGolf(Random rng) {
+        List<Integer> golfOrder = new ArrayList<>();
+        for (int i = 0; i < 0x14; i++) {
+            golfOrder.add(i);
+        }
+        Collections.shuffle(golfOrder,rng);
+        return golfOrder.toArray(new Integer[0x14]);
     }
 
     /**
@@ -755,20 +939,19 @@ public class Main {
             idx = 8;
         }
 
+        List<Level> finalKeyLocationList = Arrays.asList(finalKeyLocations);
+
         boolean gotItem;
         do {
             List<Integer> newItems = new Vector<>();
             gotItem = false;
             for (int i = 0; i < finalTreasures.length; i++) {
+
                 if (locationsChecked.contains(i)) continue;
-                if (canAccess(locationNames[i], inventory, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
+                if (canAccess(locationNames[i], inventory, finalKeyLocationList, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
                     locationsChecked.add(i);
                     gotItem = true;
                     newItems.add(finalTreasures[i]);
-                    int level = 0;
-                    for (int j = 0; j < worldMap.length; j++) {
-                        if (worldMap[j] == i/4) level = j;
-                    }
                     if (finalTreasures[i] == Items.TORCH) break;
                 }
             }
@@ -857,11 +1040,26 @@ public class Main {
      *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
      *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
      *                    that border using NEXT MAP
+     */
+    private static boolean canAccess(String location, List<Integer> inventory) {
+        if (location.length() == 3) {
+            return false; // this shouldn't happen
+        }
+        return canAccess(location, inventory, null, false, false);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
      *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
      *                    a treasure at that location
      */
-    private static boolean canAccess(String location, List<Integer> inventory) {
-        return canAccess(location, inventory, false, false);
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations) {
+        return canAccess(location, inventory, keyLocations, false, false);
     }
 
     /**
@@ -875,7 +1073,23 @@ public class Main {
      *                    a treasure at that location
      * @param adjusted if true, and location is a two-character level code, will not adjust for the effects of map shuffle
      */
-    private static boolean canAccess(String location, List<Integer> inventory, boolean forwardGPStart, boolean adjusted) {
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations, boolean forwardGPStart, boolean adjusted) {
+        return canAccess(location, inventory, keyLocations, forwardGPStart, adjusted, true)
+                || canAccess(location, inventory, keyLocations, forwardGPStart, adjusted, false);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
+     *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
+     *                    a treasure at that location
+     * @param adjusted if true, and location is a two-character level code, will not adjust for the effects of map shuffle
+     */
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations, boolean forwardGPStart, boolean adjusted, boolean dayOnly) {
 
         if (location.equals("NW")) {
             return inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R);
@@ -899,6 +1113,7 @@ public class Main {
             for (int i = 0; i < worldMap.length; i++) {
                 if (worldMap[i] == falseIdx) {
                     location = "" + ("NWSEE".charAt(i/6)) + ((i == 24) ? "7" : Character.forDigit((i%6)+1,10));
+                    break;
                 }
             }
         }
@@ -913,44 +1128,44 @@ public class Main {
             return inventory.contains(Items.AXE) || (inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R));
         }
         else if (location.equals("N4")) {
-            return inventory.contains(Items.MUSIC_BOX_2) && canAccess("N3", inventory, false, true);
+            return inventory.contains(Items.MUSIC_BOX_2) && canAccess("N3", inventory, keyLocations, false, true);
         }
         else if (location.equals("N5")) {
-            return canAccess("N4", inventory, false, true);
+            return canAccess("N4", inventory, keyLocations, false, true);
         }
         else if (location.equals("N6")) {
-            return inventory.contains(Items.GARLIC) && canAccess("N5", inventory, false, true);
+            return inventory.contains(Items.GARLIC) && canAccess("N5", inventory, keyLocations, false, true);
         }
         else if (location.equals("W5")) {
-            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory, false, true);
+            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory, keyLocations, false, true);
         }
         else if (location.equals("W6")) {
             return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
-                    && canAccess("W2", inventory, false, true);
+                    && canAccess("W2", inventory, keyLocations, false, true);
         }
         else if (location.equals("S4")) {
             return inventory.contains(Items.ANGER_HALBERD) && inventory.contains(Items.ANGER_SPELL)
-                    && canAccess("S2", inventory, false, true);
+                    && canAccess("S2", inventory, keyLocations, false, true);
         }
         else if (location.equals("S5")) {
             return inventory.contains(Items.MUSIC_BOX_3)
-                    && canAccess("S2", inventory, false, true);
+                    && canAccess("S2", inventory, keyLocations, false, true);
         }
         else if (location.equals("S6")) {
             return inventory.contains(Items.SKY_KEY)
-                    && canAccess("S3", inventory, false, true);
+                    && canAccess("S3", inventory, keyLocations, false, true);
         }
         else if (location.equals("E3")) {
             return inventory.contains(Items.LAMP) && inventory.contains(Items.FLAME)
-                    && canAccess("E1", inventory, false, true);
+                    && canAccess("E1", inventory, keyLocations, false, true);
         }
         else if (location.equals("E5")) {
             return inventory.contains(Items.WARP_COMPACT)
-                    && canAccess("E7", inventory, false, true);
+                    && canAccess("E7", inventory, keyLocations, false, true);
         }
         else if (location.equals("E6")) {
             return inventory.contains(Items.CRATER_MAP)
-                    && canAccess("E3", inventory, false, true);
+                    && canAccess("E3", inventory, keyLocations, false, true);
         }
         else if (location.length() == 2) {
             return canAccessFromWest(location, inventory) || canAccessFromEast(location, inventory);
@@ -966,6 +1181,16 @@ public class Main {
             }
         }
 
+        // if we're restricted to daytime, make sure we can actually enter this level in the daytime
+        if (dayOnly && !isDaytime(location.substring(0,2),inventory)) {
+            return false;
+        }
+
+        // if a key has been placed, make sure we can get it
+        if (keyLocations != null && !canAccessKey(keyLocations,location,dayOnly,inventory)) {
+            return false;
+        }
+
         if (location.equals("N1S")) {
             return canAccess("N1", inventory);
         }
@@ -975,7 +1200,6 @@ public class Main {
         }
         else if (location.equals("N1G")) {
             return canAccess("N1", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
                     && inventory.contains(Items.WIND)
                     && inventory.contains(Items.WIND_BAG);
         }
@@ -1023,13 +1247,11 @@ public class Main {
                     && inventory.contains(Items.RED_CHEMICAL);
         }
         else if (location.equals("N4S")) {
-            return canAccess("N4", inventory)
-                    && (canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS));
+            return canAccess("N4", inventory);
         }
         else if (location.equals("N4R")) {
             return canAccess("N4", inventory)
-                    && inventory.contains(Items.GARLIC)
-                    && canSwim(inventory);
+                    && inventory.contains(Items.GARLIC);
         }
         else if (location.equals("N4G")) {
             return canAccess("N4", inventory)
@@ -1046,13 +1268,11 @@ public class Main {
         else if (location.equals("N5R")) {
             return canAccess("N5", inventory)
                     && canLift(inventory)
-                    && canSwim(inventory)
-                    && (inventory.contains(Items.SPIKED_HELMET) || canSuperSwim(inventory));
+                    && canSwim(inventory);
         }
         else if (location.equals("N5G")) {
             return canAccess("N5", inventory)
-                    && inventory.contains(Items.WIRE_WIZARD)
-                    && inventory.contains(Items.GARLIC);
+                    && inventory.contains(Items.WIRE_WIZARD);
         }
         else if (location.equals("N5B")) {
             return canAccess("N5", inventory)
@@ -1081,24 +1301,24 @@ public class Main {
         else if (location.equals("N6B")) {
             return canAccess("N6", inventory)
                     && canSuperGP(inventory)
-                    && inventory.contains(Items.NIGHT_VISION_GOGGLES)
-                    && inventory.contains(Items.JUMP_BOOTS);
+                    && inventory.contains(Items.NIGHT_VISION_GOGGLES);
         }
         else if (location.equals("W1S")) {
-            return canAccess("W1", inventory) && isDaytime("W1", inventory);
+            return canAccess("W1", inventory) && (dayOnly || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("W1R")) {
-            return canAccess("W1", inventory);
+            return canAccess("W1", inventory) && (!dayOnly || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("W1G")) {
             return canAccess("W1", inventory)
                     && inventory.contains(Items.SPIKED_HELMET)
-                    && canGP(inventory);
+                    && (!dayOnly || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("W1B")) {
             return canAccess("W1", inventory)
                     && canSuperGP(inventory)
-                    && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS));
+                    && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS))
+                    && (!dayOnly || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("W2S")) {
             return canAccess("W2", inventory);
@@ -1110,14 +1330,11 @@ public class Main {
         else if (location.equals("W2G")) {
             return canAccess("W2", inventory)
                     && inventory.contains(Items.WHEELS)
-                    && inventory.contains(Items.FLUTE)
-                    && canSwim(inventory);
+                    && inventory.contains(Items.FLUTE);
         }
         else if (location.equals("W2B")) {
             return canAccess("W2", inventory)
-                    && inventory.contains(Items.STONE_FOOT)
-                    && canSwim(inventory)
-                    && (inventory.contains(Items.SPIKED_HELMET) || canSuperSwim(inventory));
+                    && inventory.contains(Items.STONE_FOOT);
         }
         else if (location.equals("W3S")) {
             return canAccess("W3", inventory)
@@ -1150,29 +1367,23 @@ public class Main {
                     && canSuperGP(inventory);
         }
         else if (location.equals("W4B")) {
-            return canAccess("W4", inventory)
-                    && inventory.contains(Items.PROPELLOR)
-                    && canLift(inventory);
+            return canAccess("W4", inventory);
         }
         else if (location.equals("W5S")) {
             return canAccess("W5", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
                     && canSwim(inventory);
         }
         else if (location.equals("W5R")) {
             return canAccess("W5", inventory)
-                    && canSuperSwim(inventory);
+                    && canSwim(inventory);
         }
         else if (location.equals("W5G")) {
             return canAccess("W5", inventory)
-                    && inventory.contains(Items.GROWTH_SEED)
                     && canSwim(inventory)
                     && canLift(inventory);
         }
         else if (location.equals("W5B")) {
             return canAccess("W5", inventory)
-                    && inventory.contains(Items.BLUE_CHEMICAL)
-                    && inventory.contains(Items.RED_CHEMICAL)
                     && canSwim(inventory)
                     && canLift(inventory);
         }
@@ -1182,8 +1393,7 @@ public class Main {
         }
         else if (location.equals("W6R")) {
             return canAccess("W6", inventory)
-                    && canSuperGP(inventory)
-                    && canLift(inventory);
+                    && canSuperGP(inventory);
         }
         else if (location.equals("W6G")) {
             return canAccess("W6", inventory)
@@ -1223,9 +1433,7 @@ public class Main {
         }
         else if (location.equals("S2G")) {
             return canAccess("S2", inventory)
-                    && canLift(inventory)
-                    && canSwim(inventory)
-                    && canGP(inventory);
+                    && canLift(inventory);
         }
         else if (location.equals("S2B")) {
             return canAccess("S2", inventory)
@@ -1244,8 +1452,7 @@ public class Main {
         }
         else if (location.equals("S3G")) {
             return canAccess("S3", inventory)
-                    && inventory.contains(Items.WIRE_WIZARD)
-                    && inventory.contains(Items.JUMP_BOOTS);
+                    && inventory.contains(Items.WIRE_WIZARD);
         }
         else if (location.equals("S3B")) {
             return canAccess("S3", inventory)
@@ -1276,8 +1483,7 @@ public class Main {
                     && canGP(inventory);
         }
         else if (location.equals("S5S")) {
-            return canAccess("S5", inventory)
-                    && canLift(inventory);
+            return canAccess("S5", inventory);
         }
         else if (location.equals("S5R")) {
             return canAccess("S5", inventory)
@@ -1329,8 +1535,7 @@ public class Main {
         else if (location.equals("E1G")) {
             return canAccess("E1", inventory)
                     && inventory.contains(Items.JUMP_BOOTS)
-                    && inventory.contains(Items.STONE_FOOT)
-                    && canLift(inventory);
+                    && inventory.contains(Items.STONE_FOOT);
         }
         else if (location.equals("E1B")) {
             return canAccess("E1", inventory)
@@ -1350,39 +1555,34 @@ public class Main {
         }
         else if (location.equals("E2B")) {
             return canAccess("E2", inventory)
-                    && (canSuperSwim(inventory) || isDaytime("E2",inventory));
+                    && (dayOnly || canSuperSwim(inventory));
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
-                    && canLift(inventory)
                     && canGP(inventory);
         }
         else if (location.equals("E3R")) {
             return canAccess("E3", inventory)
-                    && (canSuperLift(inventory) || (canLift(inventory) && isDaytime("E3", inventory)));
+                    && canLift(inventory);
         }
         else if (location.equals("E3G")) {
             return canAccess("E3", inventory)
-                    && canSuperLift(inventory);
+                    && canLift(inventory);
         }
         else if (location.equals("E3B")) {
             return canAccess("E3", inventory)
-                    && inventory.contains(Items.BRICK)
-                    && canLift(inventory)
-                    && canGP(inventory)
-                    && (inventory.contains(Items.JUMP_BOOTS) || isDaytime("E3", inventory));
+                    && canLift(inventory);
         }
         else if (location.equals("E4S")) {
             return canAccess("E4", inventory);
         }
         else if (location.equals("E4R")) {
             return canAccess("E4", inventory)
-                    && inventory.contains(Items.GARLIC)
-                    && canLift(inventory);
+                    && inventory.contains(Items.GARLIC);
         }
         else if (location.equals("E4G")) {
             return canAccess("E4", inventory)
-                    && (isDaytime("E4", inventory)
+                    && (dayOnly
                     || (inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E4B")) {
@@ -1391,8 +1591,7 @@ public class Main {
                     && inventory.contains(Items.JUMP_BOOTS);
         }
         else if (location.equals("E5S")) {
-            return canAccess("E5", inventory)
-                    && canLift(inventory);
+            return canAccess("E5", inventory);
         }
         else if (location.equals("E5R")) {
             return canAccess("E5", inventory)
@@ -1411,8 +1610,7 @@ public class Main {
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)
-                    && canLift(inventory)
-                    && canSuperGP(inventory);
+                    && canLift(inventory);
         }
         else if (location.equals("E6R")) {
             return canAccess("E6", inventory)
@@ -1435,7 +1633,6 @@ public class Main {
         }
         else if (location.equals("E7R")) {
             return canAccess("E7", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
                     && inventory.contains(Items.VALVE)
                     && canSuperLift(inventory);
         }
@@ -1447,6 +1644,850 @@ public class Main {
         else if (location.equals("E7B")) {
             return canAccess("E7", inventory)
                     && inventory.contains(Items.DEMON_BLOOD);
+        }
+        return false;
+    }
+
+    /**
+     * Check if Wario can get a given key with his current inventory.
+     *
+     * @param keyLocations  List of levels with their placed keys
+     * @param location      Three-character location code of the key to check (e.g. "E3R")
+     * @param daytime       True if it's daytime
+     * @param inventory     Wario's inventory
+     * @return true if the key can be acquired
+     */
+    private static boolean canAccessKey(List<Level> keyLocations, String location, boolean daytime, List<Integer> inventory) {
+        if (keyLocations == null) {
+            return true;
+        }
+        int lvl = "NWSE".indexOf(location.charAt(0))*6 + Integer.parseInt("" + location.charAt(1))-1;
+        int idx = "SRGB".indexOf(location.charAt(2));
+        Level level = keyLocations.get(lvl);
+        KeyLocation keyLoc = level.getLocation(idx);
+        if (keyLoc == null) {
+            return true;
+        }
+
+        return canAccessKeyLocation(location.substring(0,2),keyLoc.getRegion(),keyLoc.getSubLocation(),daytime,inventory);
+    }
+
+    /**
+     * Check if Wario can access a potential key location with his current inventory.
+     *
+     * @param level     Two-character level code (e.g. "E3")
+     * @param region    Which region the location exists in (identified by the number of its top-left sector
+     * @param location  In a region, which sub-location points to the key
+     * @param daytime   True if it's daytime
+     * @param inventory Wario's current inventory
+     * @return True if the key location can be reached
+     */
+    private static boolean canAccessKeyLocation(String level, int region, int location, boolean daytime, List<Integer> inventory) {
+        if (level.equals("N1")) {
+            if (region == 0x2) {
+                return inventory.contains(Items.POWDER) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x3) {
+                if (location == 2) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.POWDER) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return canSuperGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0xd) {
+                return canGP(inventory) || inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x14) {
+                return canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x17) {
+                return canSwim(inventory);
+            }
+        }
+        else if (level.equals("N2")) {
+            if (region == 0x1) {
+                if (location == 2) {
+                    return canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x5) {
+                return true;
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x8) {
+                return canSuperGP(inventory) && inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x14) {
+                return canSuperGP(inventory);
+            }
+            else if (region == 0x1c) {
+                if (location == 0) {
+                    return canGP(inventory)
+                            && ((inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)) || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
+                }
+                else {
+                    return (inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)) || (canSuperGP(inventory) && inventory.contains(Items.GARLIC));
+                }
+            }
+        }
+        else if (level.equals("N3")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x14) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x16) {
+                return canGP(inventory);
+            }
+            else if (region == 0x19) {
+                return canSwim(inventory);
+            }
+            else if (region == 0x1a) {
+                return inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL);
+            }
+        }
+        else if (level.equals("N4")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return canSwim(inventory);
+                }
+                else {
+                    return canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS);
+                }
+            }
+            else if (region == 0xa) {
+                return canSuperSwim(inventory);
+            }
+            else if (region == 0x12) {
+                return inventory.contains(Items.PUMP) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.GARLIC) && canLift(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x16) {
+                return inventory.contains(Items.GARLIC) && canSwim(inventory);
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.PUMP);
+            }
+            else if (region == 0x1d) {
+                return canSwim(inventory);
+            }
+        }
+        else if (level.equals("N5")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return inventory.contains(Items.GARLIC);
+                }
+                else if (location == 3) {
+                    if (daytime) {
+                        return canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS);
+                    }
+                    else {
+                        return canSwim(inventory);
+                    }
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                return canSwim(inventory) && inventory.contains(Items.GARLIC) && inventory.contains(Items.GROWTH_SEED);
+            }
+            else if (region == 0x9) {
+                return canLift(inventory) && canSwim(inventory)
+                        && (canSuperSwim(inventory) || inventory.contains(Items.SPIKED_HELMET));
+            }
+            else if (region == 0xa) {
+                return canLift(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x1b) {
+                return inventory.contains(Items.GARLIC);
+            }
+        }
+        else if (level.equals("N6")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.GARLIC) && canGP(inventory) && canSwim(inventory);
+                }
+                else {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory) && canSwim(inventory);
+                }
+            }
+            else if (region == 0x5) {
+                return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x6) {
+                return canSuperGP(inventory) && inventory.contains(Items.NIGHT_VISION_GOGGLES) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x14) {
+                return canSuperGP(inventory);
+            }
+            else if (region == 0x19) {
+                return canSuperGP(inventory) && inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x1c) {
+                return inventory.contains(Items.GARLIC) && canGP(inventory) && canSwim(inventory) && inventory.contains(Items.PURITY_STAFF);
+            }
+        }
+        else if (level.equals("W1")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return !daytime || (inventory.contains(Items.GARLIC) && canSuperGP(inventory));
+                }
+                else {
+                    if (daytime) {
+                        return inventory.contains(Items.GARLIC) && canSuperGP(inventory);
+                    }
+                    else {
+                        return inventory.contains(Items.GARLIC) || canGP(inventory);
+                    }
+                }
+            }
+            else if (region == 0x5) {
+                return canSuperGP(inventory) && (inventory.contains(Items.JUMP_BOOTS) || canLift(inventory)) && (!daytime || inventory.contains(Items.GARLIC));
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return inventory.contains(Items.GARLIC)
+                            || (!daytime && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory));
+                }
+                else {
+                    return canSuperGP(inventory) && canLift(inventory) && (!daytime || inventory.contains(Items.GARLIC));
+                }
+            }
+            else if (region == 0x8) {
+                if (!daytime && !inventory.contains(Items.GARLIC)) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return inventory.contains(Items.SPIKED_HELMET) && canLift(inventory);
+                }
+                else if (location == 2) {
+                    return canGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0xa) {
+                return daytime || inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x14) {
+                return !daytime || inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x18) {
+                return canSuperGP(inventory)
+                        && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS))
+                        && (!daytime || inventory.contains(Items.GARLIC));
+            }
+        }
+        else if (level.equals("W2")) {
+            if (region == 0x1) {
+                return inventory.contains(Items.WHEELS);
+            }
+            else if (region == 0x5) {
+                return true;
+            }
+            else if (region == 0x7) {
+                return canGP(inventory);
+            }
+            else if (region == 0x8) {
+                return inventory.contains(Items.STONE_FOOT) && canSwim(inventory)
+                        && (inventory.contains(Items.SPIKED_HELMET) || canSuperSwim(inventory));
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.STONE_FOOT) && canSwim(inventory);
+            }
+            else if (region == 0xa) {
+                if (location == 0) {
+                    return inventory.contains(Items.WHEELS);
+                }
+                else {
+                    return inventory.contains(Items.WHEELS) && canSwim(inventory);
+                }
+            }
+            else if (region == 0x14) {
+                return true;
+            }
+        }
+        else if (level.equals("W3")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS)
+                            || (canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 1) {
+                    return canGP(inventory);
+                }
+                else if (location == 2) {
+                    return canSwim(inventory);
+                }
+                else if (location == 3) {
+                    return canSuperSwim(inventory);
+                }
+            }
+            else if (region == 0x7) {
+                if (!canSwim(inventory)) {
+                    return false;
+                }
+                else if (location == 1 || location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x14) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x1a) {
+                return inventory.contains(Items.PUMP) && canSwim(inventory);
+            }
+        }
+        else if (level.equals("W4")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0x5) {
+                return inventory.contains(Items.JUMP_BOOTS) && canSuperGP(inventory) && canSuperLift(inventory);
+            }
+            else if (region == 0x7) {
+                return canLift(inventory) && inventory.contains(Items.PROPELLOR);
+            }
+            else if (region == 0x9) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.SPIKED_HELMET) && canSuperGP(inventory);
+                }
+            }
+            else if (region == 0x16) {
+                return canSuperLift(inventory);
+            }
+            else if (region == 0x17) {
+                if (location == 0) {
+                    return canLift(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x19) {
+                return inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x1c) {
+                return canSuperLift(inventory) && canSuperGP(inventory);
+            }
+        }
+        else if (level.equals("W5")) {
+            if (region == 0xc) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                }
+            }
+            else if (!canSwim(inventory)) {
+                return false;
+            }
+            else if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.GROWTH_SEED) && canSuperSwim(inventory);
+                }
+                else {
+                    return inventory.contains(Items.GROWTH_SEED);
+                }
+            }
+            else if (region == 0x4) {
+                return true;
+            }
+            else if (region == 0xa) {
+                return canSuperSwim(inventory);
+            }
+            else if (region == 0x16) {
+                if (!canSuperSwim(inventory)) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return canSuperLift(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x1B) {
+                return inventory.contains(Items.RED_CHEMICAL) && inventory.contains(Items.BLUE_CHEMICAL);
+            }
+        }
+        else if (level.equals("W6")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+                return inventory.contains(Items.FIRE_EXTINGUISHER) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x8) {
+                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory);
+            }
+            else if (region == 0xa) {
+                return canLift(inventory) && canGP(inventory);
+            }
+            else if (region == 0x18) {
+                return canSuperGP(inventory);
+            }
+        }
+        else if (level.equals("S1")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+            }
+            else if (region == 0x15) {
+                return true;
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x19) {
+                return inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x1a) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                }
+            }
+        }
+        else if (level.equals("S2")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return canLift(inventory);
+                }
+                else if (location == 2) {
+                    return canGP(inventory) && canSwim(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory);
+                }
+                else {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
+                            && inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC);
+                }
+            }
+            else if (region == 0xa) {
+                if (location == 0) {
+                    return canSwim(inventory) && canSuperGP(inventory);
+                }
+                else {
+                    return canSwim(inventory) && canGP(inventory)
+                            && (canSuperGP(inventory) || canLift(inventory));
+                }
+            }
+            else if (region == 0x14) {
+                return canGP(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x19) {
+                if (location == 0) {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
+                            && inventory.contains(Items.GARLIC) && canSuperGP(inventory);
+                }
+                else {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
+                            && inventory.contains(Items.GARLIC);
+                }
+            }
+        }
+        else if (level.equals("S3")) {
+            if (region == 0x1) {
+                return inventory.contains(Items.WIRE_WIZARD)
+                        && inventory.contains(Items.GOLD_EYE_L)
+                        && inventory.contains(Items.GOLD_EYE_R);
+            }
+            else if (region == 0x2) {
+                if (location == 0) {
+                    return inventory.contains(Items.WIRE_WIZARD);
+                }
+                else if (location == 1) {
+                    return inventory.contains(Items.WIRE_WIZARD) && inventory.contains(Items.JUMP_BOOTS);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.WIRE_WIZARD) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.GARLIC);
+                }
+            }
+            else if (region == 0x4 || region == 0x18 || region == 0x1a) {
+                return inventory.contains(Items.BLUE_EYE_L) && inventory.contains(Items.BLUE_EYE_R);
+            }
+            else if (region == 0x8) {
+                return true;
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.WIRE_WIZARD)
+                        && inventory.contains(Items.GOLD_EYE_L)
+                        && inventory.contains(Items.GOLD_EYE_R)
+                        && inventory.contains(Items.SPIKED_HELMET)
+                        && inventory.contains(Items.GARLIC)
+                        && inventory.contains(Items.JUMP_BOOTS)
+                        && canSuperLift(inventory);
+            }
+        }
+        else if (level.equals("S4")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
+            }
+            else if (region == 0x11) {
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.STONE_FOOT);
+            }
+            else if (region == 0x19) {
+                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
+            }
+            else if (region == 0x1c) {
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+            }
+        }
+        else if (level.equals("S5")) {
+            if (region == 0x1 || region == 0x3) {
+                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
+                        && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
+                        && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return canLift(inventory);
+                }
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+            }
+            else if (region == 0xe) {
+                return inventory.contains(Items.SPIKED_HELMET);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.DETONATOR);
+            }
+        }
+        else if (level.equals("S6")) {
+            if (region == 0x1 || region == 0x3) {
+                return true;
+            }
+            else if (!inventory.contains(Items.JUMP_BOOTS)) {
+                return false;
+            }
+            else if (region == 0x5) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.SCISSORS);
+                }
+            }
+            else if (region == 0x1c) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.SPIKED_HELMET) && canLift(inventory);
+                }
+            }
+            else if (!inventory.contains(Items.SCISSORS)) {
+                return false;
+            }
+            else if (region == 0x7) {
+                if (location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.GONG) && canLift(inventory) && canSuperGP(inventory);
+            }
+        }
+        else if (level.equals("E1")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.STONE_FOOT) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+            }
+            else if (region == 0x7) {
+                if (location == 1) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return inventory.contains(Items.DETONATOR);
+                }
+            }
+            else if (region == 0x14 || region == 0x16) {
+                return inventory.contains(Items.STONE_FOOT);
+            }
+        }
+        else if (level.equals("E2")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return true;
+                }
+                else if (location == 1) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return daytime || canSuperSwim(inventory);
+                }
+            }
+            else if (region == 0x6 || region == 0x17) {
+                return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory);
+            }
+            else if (region == 0x8) {
+                return canLift(inventory);
+            }
+            else if (region == 0x14) {
+                return canLift(inventory);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory) && inventory.contains(Items.SPIKED_HELMET);
+            }
+            else if (region == 0x1A) {
+                return daytime || canSuperSwim(inventory);
+            }
+        }
+        else if (level.equals("E3")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return true;
+                }
+                else {
+                    return canLift(inventory);
+                }
+            }
+            else if (region == 0x4 || region == 0x9) {
+                return canSuperLift(inventory);
+            }
+            else if (region == 0x7) {
+                if (location < 2) {
+                    return canLift(inventory) && inventory.contains(Items.BRICK);
+                }
+                else {
+                    return canLift(inventory) && inventory.contains(Items.BRICK) && canGP(inventory);
+                }
+            }
+            else if (region == 0x1a) {
+                if (!daytime && !canSuperLift(inventory)) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                }
+                else {
+                    return canLift(inventory);
+                }
+            }
+        }
+        else if (level.equals("E4")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return daytime || inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+                return true;
+            }
+            else if (region == 0x7) {
+                return inventory.contains(Items.DETONATOR) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.GARLIC) && (inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS));
+            }
+            else if (region == 0x14) {
+                return inventory.contains(Items.GARLIC) && canLift(inventory);
+            }
+            else if (region == 0x1B) {
+                if (location == 1) {
+                    return daytime || inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return (daytime && canSuperLift(inventory)) || (!daytime && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
+                }
+            }
+        }
+        else if (level.equals("E5")) {
+            if (region == 0x3) {
+                return inventory.contains(Items.BLUE_KEY_CARD)
+                        && inventory.contains(Items.RED_KEY_CARD)
+                        && canLift(inventory) && inventory.contains(Items.SPIKED_HELMET);
+            }
+            else if (region == 0x6 || region == 0x7) {
+                return canLift(inventory)
+                        && ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD))
+                            || inventory.contains(Items.WARP_REMOTE));
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.WARP_REMOTE);
+            }
+            else if (region == 0xa || region == 0xc) {
+                return inventory.contains(Items.BLUE_KEY_CARD)
+                        && inventory.contains(Items.RED_KEY_CARD)
+                        && canLift(inventory);
+            }
+            else if (region == 0x18) {
+                return canLift(inventory);
+            }
+        }
+        else if (level.equals("E6")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return true;
+                }
+                else if (location == 1) {
+                    return canLift(inventory) && canSuperGP(inventory);
+                }
+                else {
+                    return canLift(inventory);
+                }
+            }
+            else if (region == 0x4) {
+                return canLift(inventory) && inventory.contains(Items.JACKHAMMER);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return canLift(inventory) && canGP(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                }
+                else {
+                    return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                }
+            }
+            else if (region == 0x11) {
+                return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+            }
+            else if (region == 0x14) {
+                return canLift(inventory);
+            }
+            else if (region == 0x18) {
+                if (location == 0) {
+                    return inventory.contains(Items.PICKAXE) && inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.PICKAXE) && canLift(inventory);
+                }
+            }
+        }
+        else if (level.equals("E7")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+                if (location == 0) {
+                    return inventory.contains(Items.VALVE) && canLift(inventory);
+                }
+                else {
+                    return inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
+                }
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return inventory.contains(Items.VALVE);
+                }
+                else {
+                    return inventory.contains(Items.VALVE) && canSuperLift(inventory);
+                }
+            }
+            else if (region == 0xa) {
+                return true;
+            }
+            else if (region == 0x15) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.DEMON_BLOOD);
+                }
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.VALVE) && inventory.contains(Items.JUMP_BOOTS) && canSuperLift(inventory);
+            }
         }
         return false;
     }
@@ -1547,5 +2588,18 @@ public class Main {
             return inventory.contains(Items.TORCH);
         }
         return false;
+    }
+
+    /**
+     * Deep copy a level list
+     *
+     * @param levelList list to copy
+     */
+    private static List<Level> cloneLevelList(List<Level> levelList) {
+        List<Level> ret = new ArrayList<>(levelList);
+        for (int i = 0; i < ret.size(); i++) {
+            ret.set(i,new Level(ret.get(i)));
+        }
+        return ret;
     }
 }

@@ -6,20 +6,30 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
+import keyshuffle.KeyLocation;
+import keyshuffle.Level;
 
 public class Patcher {
 
     /**
-     * Create a patched, randomized ROM and write it to disk.
+     * Create a patched, randomized ROM and write it to disk. Any NULL options will not be shuffled.
      *
      * @param vanillaPathStr  path to a vanilla ROM
      * @param treasures       ordered list of randomized treasures
      * @param seed            encoded String representation of the seed used to generate treasures
      * @param playthrough     byte array representing order that treasures should be collected in, or null if vanilla
+     * @param music           ordered array of music ids
+     * @param worldMap        ordered array of level ids
+     * @param levelColors     list of ints from 0 to 100000 representing an amount to rotate level color hues by
+     * @param objColors       list of ints from 0 to 100000 representing an amount to rotate enemy/object color hues by
+     * @param chestColors     list of ints from 0 to 100000 representing four hues, four saturations, and four values to apply to the four key/chest pairs (highlights and outlines will be auto-generated)
+     * @param keyLocations    list of levels and their key placements
+     * @param golfOrder       ordered array of golf course ids
+     * @param cutsceneSkip    true if the cutscene skip patch should be applied
      * @param version         String representing current app version
      * @throws IOException    if something goes wrong reading from or writing to a ROM
      */
-    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, Integer[] worldMap, int[] paletteSwitches, int[] objColors, String version) throws IOException {
+    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, Integer[] worldMap, int[] levelColors, int[] objColors, int[] chestColors, Level[] keyLocations, Integer[] golfOrder, boolean cutsceneSkip, String version) throws IOException {
         Path vanillaPath = new File(vanillaPathStr).toPath();
         byte[] romBytes = Files.readAllBytes(vanillaPath);
         romBytes = applyPatch(romBytes, "baseDiff.json");
@@ -30,14 +40,26 @@ public class Patcher {
         if (music != null) {
             romBytes = musicPatch(romBytes, music);
         }
-        if (worldMap != null) {
-            romBytes = mapPatch(romBytes, worldMap);
+        if (keyLocations != null) {
+            romBytes = keyShufflePatch(romBytes, keyLocations);
         }
-        if (paletteSwitches != null) {
-            romBytes = shuffleBGPalettes(romBytes,paletteSwitches);
+        if (worldMap != null) {
+            romBytes = mapPatch(romBytes, worldMap, keyLocations != null);
+        }
+        if (golfOrder != null) {
+            romBytes = shuffleGolf(romBytes, golfOrder);
+        }
+        if (levelColors != null) {
+            romBytes = shuffleBGPalettes(romBytes,levelColors);
         }
         if (objColors != null) {
             romBytes = shuffleObjPalettes(romBytes, objColors);
+        }
+        if (chestColors != null) {
+            romBytes = shuffleChestPalettes(romBytes, chestColors);
+        }
+        if (cutsceneSkip) {
+            romBytes = applyPatch(romBytes,"cutSkipPatch.json");
         }
         savePatchedFile(romBytes, seed, version);
     }
@@ -144,7 +166,7 @@ public class Patcher {
      * @return
      * @throws IOException
      */
-    private static byte[] mapPatch(byte[] romBytes, Integer[] worldMap) throws IOException {
+    private static byte[] mapPatch(byte[] romBytes, Integer[] worldMap, boolean keyShuffle) throws IOException {
         // logic update patch, allowing for levels from the first half of the game to appear in the second and vice versa
         romBytes = applyPatch(romBytes, "mapShufflePatch.json");
         // reorder level tile/object pointer table
@@ -193,7 +215,6 @@ public class Patcher {
             int levelIdx = romBytes[idx] & 0xFF;
             for (int i = 0; i < worldMap.length; i++) {
                 if (worldMap[i].byteValue() << 3 == levelIdx) {
-//                    romBytes[idx] = (byte)(i<<3);
                     byte[] swap = {(byte)(i<<3), romBytes[idx+1], romBytes[idx+2], romBytes[idx+3], romBytes[idx+4]};
                     levelTransitionSwaps.add(swap);
                 }
@@ -212,6 +233,10 @@ public class Patcher {
                 romBytes[idx] = i;
                 idx++;
             }
+        }
+
+        if (keyShuffle) {
+            scrambleLevels(romBytes,worldMap,3,0x36eb);
         }
 
         return romBytes;
@@ -239,8 +264,8 @@ public class Patcher {
     private static byte[] scrambleLevels(byte[] romBytes, Integer[] worldMap, int entrySize, int idx, int[] skips) {
         // extract each block to move
         int offset = 0;
-        byte[][] levelData = new byte[25][entrySize];
-        for (int i = 0; i < 25*entrySize; i++) {
+        byte[][] levelData = new byte[worldMap.length][entrySize];
+        for (int i = 0; i < worldMap.length*entrySize; i++) {
             if (i % entrySize == 0) {
                 for (int skip : skips) {
                     if ((i + offset) / entrySize == skip) {
@@ -255,7 +280,7 @@ public class Patcher {
         offset = 0;
 
         // write the blocks back into memory in the correct order
-        for (int i = 0; i < 25*entrySize; i++) {
+        for (int i = 0; i < worldMap.length*entrySize; i++) {
             if (i % entrySize == 0) {
                 for (int skip : skips) {
                     if ((i + offset) / entrySize == skip) {
@@ -351,6 +376,9 @@ public class Patcher {
         return romBytes;
     }
 
+    /**
+     * Rotate level background palettes by the given amounts.
+     */
     private static byte[] shuffleBGPalettes(byte[] romBytes, int[] switches) {
         // c0b1b = start of table, +C8000
         int tableIdx = 0xc0b1b;
@@ -359,13 +387,14 @@ public class Patcher {
             int offset = ((romBytes[tableIdx+(i/4)+1] & 0xff) << 8) + (romBytes[tableIdx+(i/4)] & 0xff);
             for (int j = 0; j < 64; j += 8) {
                 romBytes = swapColors(romBytes, palIdx + offset + j, switches[i+j/8], false);
-//                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i + 1]);
-//                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i + 2]);
             }
         }
         return romBytes;
     }
 
+    /**
+     * Rotate sprite palettes by the given amounts.
+     */
     private static byte[] shuffleObjPalettes(byte[] romBytes, int[] colors) {
         int idx = 0x65251;
         int offset = 0;
@@ -383,12 +412,6 @@ public class Patcher {
                 colorIdx++;
             }
         }
-
-        // now apply one color rotation to all four key/chest palettes
-        romBytes = swapColors(romBytes,0x64fc9, colors[0], true);
-        romBytes = swapColors(romBytes,0x64fd7, colors[0], false);
-        romBytes = swapColors(romBytes,0x64fe5, colors[0], false);
-        romBytes = swapColors(romBytes,0x64ff3, colors[0], false);
 
         // rotate rudy's colors
         romBytes = swapColors(romBytes,0xdb000,colors[1],false);
@@ -455,7 +478,35 @@ public class Patcher {
         romBytes[0x4d0a3] = romBytes[0x4d07b];
         romBytes[0x4d0a4] = romBytes[0x4d07c];
 
+        return romBytes;
+    }
 
+    /**
+     * Apply colors to the key/chest palettes.
+     */
+    private static byte[] shuffleChestPalettes(byte[] romBytes, int[] colors) {
+        for (int i = 0; i < 4; i++) {
+            float hue = (float)colors[i] / 100000f;
+            float sat = (float)colors[i+4] / 100000f;
+            float val = (float)colors[i+8] / 100000f;
+
+            byte[] main = HSVtoGBC(hue,sat,val);
+
+            float hsat = sat/3f;
+            float hval = 0.97f;
+
+            byte[] highlight = HSVtoGBC(hue,hsat,hval);
+
+            float oval = val * 0.2857f;
+
+            byte[] outline = HSVtoGBC(hue,sat,oval);
+
+            byte[] palette = {highlight[0],highlight[1],main[0],main[1],outline[0],outline[1]};
+            int idx = 0x64fc9 + (i * 0xe) + 0x2;
+            for (int j = 0; j < palette.length; j++) {
+                romBytes[idx + j] = palette[j];
+            }
+        }
 
         // set menu key colors to match real key colors
         romBytes[0x1f41de] = romBytes[0x64fcd];
@@ -489,6 +540,9 @@ public class Patcher {
         return romBytes;
     }
 
+    /**
+     * Converts a HSV color to GBC palette format.
+     */
     private static byte[] HSVtoGBC(float hue, float sat, float val) {
         int color = Color.HSBtoRGB(hue, sat, val);
         int b = (color & 0xFF) >>> 3;
@@ -501,20 +555,15 @@ public class Patcher {
         return retBytes;
     }
 
+    /**
+     * Rotates a color palette at the given index.
+     */
     private static byte[] swapColors(byte[] romBytes, int idx, int swap, boolean grayKey) {
         for (int i = 0; i < 8; i += 2) {
             int pal = ((romBytes[idx+i+1] & 0xff) << 8) + (romBytes[idx+i] & 0xff);
             int b = (pal & 0x7c00) >>> 10;
             int g = (pal & 0x3e0) >>> 5;
             int r = (pal & 0x1f);
-
-//            int sb = (swap & 0x7c00) >>> 10;
-//            int sg = (swap & 0x3e0) >>> 5;
-//            int sr = (swap & 0x1f);
-//
-//            b -= (b - sb) * 80 / 100;
-//            g -= (g - sb) * 80 / 100;
-//            r -= (r - sr) * 80 / 100;
 
             float[] hsv = Color.RGBtoHSB(r*8, g*8, b*8, null);
             if (grayKey) {
@@ -533,28 +582,154 @@ public class Patcher {
             g = (pal & 0xFF00) >>> 11;
             r = (pal & 0xFF0000) >>> 19;
 
-//            int temp;
-//            switch (swap) {
-//                case 0:
-//                    break;
-//                case 1:
-//                    temp = b;
-//                    b = g;
-//                    g = temp;
-//                    break;
-//                case 2:
-//                    temp = r;
-//                    r = g;
-//                    g = temp;
-//                    break;
-//                case 3:
-//                    temp = r;
-//                    r = b;
-//                    b = temp;
-//            }
             pal = (b << 10) + (g << 5) + r;
             romBytes[idx+i] = (byte)(pal & 0xff);
             romBytes[idx+i+1] = (byte)((pal & 0xff00) >>> 8);
+        }
+        return romBytes;
+    }
+
+    /**
+     * Shuffle pointers to golf courses.
+     */
+    private static byte[] shuffleGolf(byte[] romBytes, Integer[] order) {
+        int golfTableIdx = 0x1c8ac3;
+        return scrambleLevels(romBytes, order,0xa, golfTableIdx);
+    }
+
+    /**
+     * Apply logic patch and shuffle keys.
+     */
+    private static byte[] keyShufflePatch(byte[] romBytes, Level[] keyLocations) throws IOException {
+        romBytes = applyPatch(romBytes, "keyshuffle/keyShufflePatch.json");
+
+        // we need to move some objects off of palette 2 and move keys onto palette 2
+        romBytes = editPalettes(romBytes,0x63, 0x95,0x4000, 2, 0); // music coin
+        romBytes = editPalettes(romBytes,0x63, 0x1ef, 0x23c,3, 2); // key
+        romBytes = editPalettes(romBytes,0x3, 0x1287, 0x1499,2, 0); // dust, stars, etc
+        romBytes = editPalettes(romBytes,0x60, 0x23, 0x241,2, 0); // coin
+        romBytes = editPalettes(romBytes,0x60, 0x296, 0x563,2, 0); // coin
+        romBytes = editPalettes(romBytes,0x60, 0xefb, 0x136b,2, 3); // enemy projectiles
+        romBytes = editPalettes(romBytes,0x61, 0xb04, 0xeea,2, 3); // enemy projectiles
+        romBytes = editPalettes(romBytes,0x62, 0x272f, 0x2894,2, 3); // enemy projectiles
+
+        // start at level pointer table
+        int levelTableIdx = 0xc00be;
+        for (int levelNum = 0; levelNum < 25; levelNum++) {
+            Level level = keyLocations[levelNum];
+            for (int levelMod = 0; levelMod < 8; levelMod++) {
+                // compute index in level pointer table, get level metadata
+                int levelIdx = levelNum * 8 + levelMod;
+                int levelAddr = romBytes[levelTableIdx + levelIdx*2 + 1] & 0xff;
+                levelAddr <<= 8;
+                levelAddr += romBytes[levelTableIdx + levelIdx*2] & 0xff;
+                levelAddr -= 0x4000;
+                levelAddr += 0xc0000;
+                // get ROM bank to examine and address of level object data in that bank
+                int bank = romBytes[levelAddr+2] & 0xff;
+                int objAddr = romBytes[levelAddr+4] & 0xff;
+                objAddr <<= 8;
+                objAddr += romBytes[levelAddr+3] & 0xff;
+                objAddr -= 0x4000;
+                objAddr += bank * 0x4000;
+                // scan through rle-compressed level data, replace keys and coins as we find them
+                int objOffset = 0;
+                int objIdx = 0;
+                int locIdx = 0;
+                while (objIdx < 0x10 * 0x0a * 0x30) {
+                    // check first byte to see if the next bytes are to be expanded or not
+                    byte check = (byte)(romBytes[objAddr+objOffset] & 0xff);
+                    if ((check & 0x80) == 0) {
+                        // next byte is to be expanded, so advance the object index appropriately
+                        objOffset += 2;
+                        objIdx += check * 2;
+                    }
+                    else {
+                        // next bytes are a literal string, we need to be on the lookout for keys and coins
+                        check &= 0x7f;
+                        objOffset++;
+                        for (int j = 0; j < check; j++) {
+                            // check both first and last nybbles for keys/coins (2 and 3) - when found, replace with a key if we find a key that matches in the level list, or a coin otherwise
+                            byte objByte = (byte)(romBytes[objAddr+objOffset] & 0xff);
+                            if ((objByte & 0xf0) == 0x20 || (objByte & 0xf0) == 0x30) {
+                                romBytes[objAddr+objOffset] = (byte)((objByte & 0x0f) + 0x30);
+                                for (int key = 0; key < 4; key++) {
+                                    KeyLocation loc = level.getLocation(key);
+                                    if (loc.getY() * 0xa0 + loc.getX() == objIdx) {
+                                        romBytes[objAddr+objOffset] = (byte)((objByte & 0x0f) + 0x20);
+                                        break;
+                                    }
+                                }
+                                locIdx++;
+                            }
+                            objIdx++;
+                            if ((objByte & 0x0f) == 0x02 || (objByte & 0x0f) == 0x03) {
+                                romBytes[objAddr+objOffset] = (byte)((objByte & 0xf0) + 0x03);
+                                for (int key = 0; key < 4; key++) {
+                                    KeyLocation loc = level.getLocation(key);
+                                    if (loc.getY() * 0xa0 + loc.getX() == objIdx) {
+                                        romBytes[objAddr+objOffset] = (byte)((objByte & 0xf0) + 0x02);
+                                        break;
+                                    }
+                                }
+                                locIdx++;
+                            }
+                            objIdx++;
+                            objOffset++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // set up key color table for the key logic patch
+        int keyTableIdx = 0x36eb;
+        int keyTableOffset = 0;
+        for (int levelNum = 0; levelNum < 25; levelNum++) {
+            Level level = keyLocations[levelNum];
+            for (int key = 3; key > 0; key--) {
+                KeyLocation loc = level.getLocation(key);
+                int regionCoords = loc.getRegion() / 0xa;
+                regionCoords <<= 4;
+                regionCoords += loc.getRegion() % 0xa;
+                romBytes[keyTableIdx+keyTableOffset] = (byte)regionCoords;
+                keyTableOffset++;
+            }
+        }
+
+        return romBytes;
+    }
+
+    /**
+     * Edit sprite palette assignments in the given range.
+     *
+     * @param bank  which ROM bank to examine
+     * @param start starting address of palettes to edit
+     * @param end   end address of palettes to edit (should point to a 0x80 byte)
+     * @param from  palette number (0-7) to change from
+     * @param to    palette number (0-7) to change to
+     */
+    private static byte[] editPalettes(byte[] romBytes, int bank, int start, int end, int from, int to) {
+        int idx = bank * 0x4000;
+        int offset = start;
+        while (offset < end) {
+            if ((romBytes[idx+offset] & 0xff) == 0x80) {
+                offset++;
+                if ((romBytes[idx+offset] & 0xff) == 0xff &&
+                        (romBytes[idx+offset+1] & 0xff) == 0xff &&
+                        (romBytes[idx+offset+2] & 0xff) == 0xff &&
+                        (romBytes[idx+offset+3] & 0xff) == 0xff) {
+                    break;
+                }
+                while ((romBytes[idx+offset+1] & 0xf0) >= 0x40 && (romBytes[idx+offset+1] & 0xf0) <= 0x70) {
+                    offset += 2;
+                }
+            }
+            offset += 3;
+            if ((romBytes[idx+offset] & 0x07) == from) {
+                romBytes[idx+offset] = (byte)((romBytes[idx+offset] & 0xf8) + to);
+            }
+            offset++;
         }
         return romBytes;
     }

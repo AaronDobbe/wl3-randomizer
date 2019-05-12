@@ -1,7 +1,7 @@
 # wl3-randomizer
 Wario Land 3 Randomizer
 
-This is a randomizer for Wario Land 3! It shuffles the contents of all 100 treasure chests, allowing for a new playthrough every time. If you want, you can also randomize the world map and game music! No matter what, everything will be shuffled in a way that allows you to complete the game. 
+This is a randomizer for Wario Land 3! It shuffles the contents of all 100 treasure chests, allowing for a new playthrough every time. If you want, you can also randomize the world map, key locations, game music, and other things! No matter what, everything will be shuffled in a way that allows you to complete the game. 
 
 ## Downloads
 Download the randomizer at: https://github.com/AaronDobbe/wl3-randomizer/releases
@@ -28,9 +28,15 @@ In addition to shuffling treasures, the randomizer makes a few changes to the ga
 ## Game options
 * **Seed:** Allows you to generate a randomized game identical to another player's. See "Racing" above.
 * **Shuffle world map:** Shuffles the location of every level on the world map. Recommended for experienced players.
+* **Shuffle key/coin locations:** Shuffles the locations of all keys and music coins in each level. This can make some treasures much harder (or much easier) to get! Recommended for experienced players looking for a game with more exploration.
 * **Bosses guard music boxes:** If checked, music boxes will only appear in treasure chests guarded by a boss. Recommended for competitive play.
 * **Guarantee axe start:** If checked, the axe will appear in the gray chest of the first level. Recommended for beginners, as it guarantees access to The Temple for the whole game.
 * **Remove junk items:** If checked, all useless items will be removed from the game, including the chests that would have contained them. Be sure to pause the game inside a level to check which boxes have treasure! Recommended for competitive play, but speeds up casual playthroughs as well.
+* **Shuffle golf courses:** If checked, the order in which golf courses unlock will be shuffled, meaning that harder courses may appear earlier in the game and easier courses may be locked until later. This includes courses that only appear in the GAME tower in regular gameplay! Recommended for players who really enjoy golf.
+* **Randomize level colors:** If checked, the color palettes of all 25 levels will be randomized.
+* **Randomize enemy colors:** If checked, the color palettes of all enemies and other in-level objects will be randomized.
+* **Randomize key/chest colors:** If checked, the colors of the four chest/key pairs will be randomized. (This is only cosmetic - the keys and chests will functionally remain as they normally are.)
+* **Cutscene skip:** If checked, all cutscenes that would play after collecting a treasure are removed from the game. In addition, you can skip the opening cutscene and the pre-final-battle cutscene with the B button. (Tutorials cannot be skipped just yet.) If you already know what all the treasures do, this can remove a lot of downtime from the gameplay.
 * **Temple hints:** Affects the behavior of hints from The Temple.
   * **Vanilla:** Reveals the locations of items in the same order as the vanilla game, regardless of whether you can get them or not. Generally unhelpful.
   * **Corrected:** Reveals the location of an item you can get to with your current inventory. Helpful if you get stuck! Recommended for beginners.
@@ -41,9 +47,10 @@ In addition to shuffling treasures, the randomizer makes a few changes to the ga
   * **Chaos:** Each instance of (looping) music in the whole game will be replaced by a randomly-selected (looping) music track, with no guarantees of balance. This can either be really annoying or really incredible.  
 
 ## Known issues
-* The tutorial after collecting a powerup will often show powerups Wario doesn't have along the bottom of the screen, and also fail to show powerups that wario *does* have. This is purely cosmetic.
+* The tutorial after collecting a powerup will often show powerups Wario doesn't have along the bottom of the screen, and also fail to show powerups that Wario *does* have. This is purely cosmetic.
 * The "CLEAR" screen will often incorrectly show which music boxes Wario has collected. Again, this is purely cosmetic. You can easily check which music boxes Wario actually has by pressing SELECT in the world map and selecting the treasure icon.
 * Sometimes, saving and reloading mid-level will cause enemies to change color. This is also purely cosmetic.
+* Playing key shuffle causes some objects to use Wario's palette (primarily coins), meaning anything that affects Wario's palette affects those objects too. This is due to GBC limitations and shouldn't have any affect on gameplay.
 
 Many emulators run WL3 somewhat poorly, causing odd graphical/sound errors or randomly causing Wario to be unable to climb ladders through screen transitions. Using [bgb](http://bgb.bircd.org/) is recommended if you're experiencing these issues.
 
@@ -52,6 +59,7 @@ While the randomizer will never require you to use any glitches or difficult tri
 * If you collect an item that connects two quadrants of the world map, you can warp between them by pressing SELECT and selecting the NEXT MAP buttons. This may be required to get to levels you otherwise couldn't reach.
 * Just because a level's "dot" isn't available on the world map doesn't mean you can't enter that level. For example, collecting the torch early allows you to walk to E4 The Colossal Hole and enter the level even though the hole itself hasn't appeared on the map.
 * Small barrels can be nudged around by slowly walking into them while crouching, allowing you to reposition them and use them as platforms even if you don't have any gloves.
+* The boots won't affect your jump height if you're afflicted with a status effect, including rolling. Conversely, this means that you don't need the boots to jump high if you're rolling, flattened, etc...
 * If you're new to the game or even just new to the randomizer, try setting hints to "Corrected" and checking "Guarantee axe start" for your first few games. That way, if you get stuck, you can visit the Temple for direction on where to go.
 
 ## Discord

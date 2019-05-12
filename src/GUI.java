@@ -18,9 +18,15 @@ public class GUI extends JPanel implements ActionListener {
     private JTextField seedField;
 
     private JCheckBox mapShuffleCheck;
+    private JCheckBox keyShuffleCheck;
     private JCheckBox bossBoxCheck;
     private JCheckBox axeStartCheck;
     private JCheckBox excludeJunkCheck;
+    private JCheckBox golfShuffleCheck;
+    private JCheckBox levelColorCheck;
+    private JCheckBox enemyColorCheck;
+    private JCheckBox chestColorCheck;
+    private JCheckBox cutsceneSkipCheck;
 
     private ButtonGroup hintsButtonGroup;
     private ButtonGroup musicButtonGroup;
@@ -48,10 +54,18 @@ public class GUI extends JPanel implements ActionListener {
         seedField = new JTextField(11);
 
         mapShuffleCheck = new JCheckBox("Shuffle world map");
+        keyShuffleCheck = new JCheckBox("Shuffle key/coin locations");
         bossBoxCheck = new JCheckBox("Bosses guard music boxes");
         bossBoxCheck.setSelected(true);
         axeStartCheck = new JCheckBox("Guarantee axe start");
         excludeJunkCheck = new JCheckBox("Remove junk items");
+        golfShuffleCheck = new JCheckBox("Shuffle golf courses");
+        levelColorCheck = new JCheckBox("Randomize level colors");
+        levelColorCheck.setSelected(true);
+        enemyColorCheck = new JCheckBox("Randomize enemy colors");
+        enemyColorCheck.setSelected(true);
+        chestColorCheck = new JCheckBox("Randomize key/chest colors");
+        cutsceneSkipCheck = new JCheckBox("Skip cutscenes");
 
         JLabel hintsLabel = new JLabel("Temple hints:");
         hintsButtonGroup = new ButtonGroup();
@@ -82,16 +96,37 @@ public class GUI extends JPanel implements ActionListener {
         add(mapShuffleCheck,c);
 
         c.gridx = 2;
-        add(bossBoxCheck,c);
+        add(keyShuffleCheck,c);
 
         c.gridy = 3;
 
         c.gridx = 0;
-        add(axeStartCheck,c);
+        add(bossBoxCheck,c);
         c.gridx = 2;
-        add(excludeJunkCheck,c);
+        add(axeStartCheck,c);
 
         c.gridy = 4;
+
+        c.gridx = 0;
+        add(excludeJunkCheck,c);
+        c.gridx = 2;
+        add(golfShuffleCheck,c);
+
+        c.gridy = 5;
+
+        c.gridx = 0;
+        add(levelColorCheck,c);
+        c.gridx = 2;
+        add(enemyColorCheck,c);
+
+        c.gridy = 6;
+
+        c.gridx = 0;
+        add(chestColorCheck,c);
+        c.gridx = 2;
+        add(cutsceneSkipCheck,c);
+
+        c.gridy = 7;
 
         c.gridx = 0;
         c.gridwidth = 1;
@@ -113,7 +148,7 @@ public class GUI extends JPanel implements ActionListener {
         hintsStrategicButton.setActionCommand("strategic");
         add(hintsStrategicButton,c);
 
-        c.gridy = 5;
+        c.gridy = 8;
 
         c.gridx = 0;
         c.gridwidth = 1;
@@ -136,13 +171,13 @@ public class GUI extends JPanel implements ActionListener {
         add(musicChaosButton,c);
 
 
-        c.gridy = 6;
+        c.gridy = 9;
 
         c.gridx = 0;
         c.gridwidth = 4;
         add(genButton, c);
 
-        c.gridy = 7;
+        c.gridy = 10;
         add(logScrollPane, c);
     }
 
@@ -176,6 +211,12 @@ public class GUI extends JPanel implements ActionListener {
             options.put("hints",hintsButtonGroup.getSelection().getActionCommand());
             options.put("excludeJunk",excludeJunkCheck.isSelected() ? "true" : "false");
             options.put("mapShuffle",mapShuffleCheck.isSelected() ? "true" : "false");
+            options.put("keyShuffle",keyShuffleCheck.isSelected() ? "true" : "false");
+            options.put("golfShuffle",golfShuffleCheck.isSelected() ? "true" : "false");
+            options.put("levelColors",levelColorCheck.isSelected() ? "true" : "false");
+            options.put("enemyColors",enemyColorCheck.isSelected() ? "true" : "false");
+            options.put("chestColors",chestColorCheck.isSelected() ? "true" : "false");
+            options.put("cutsceneSkip",cutsceneSkipCheck.isSelected() ? "true" : "false");
             Main.generateGame(seedField.getText(), options);
         }
     }
