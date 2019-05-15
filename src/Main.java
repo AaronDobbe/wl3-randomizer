@@ -25,7 +25,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.10.0";
+    private static final String VERSION = "v0.10.1";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -2046,7 +2046,10 @@ public class Main {
                     return false;
                 }
                 else if (location == 0) {
-                    return canSuperLift(inventory);
+                    return canSuperLift(inventory) && inventory.contains(Items.SPIKED_HELMET);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
                 }
                 else {
                     return true;
