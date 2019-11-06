@@ -25,7 +25,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.10.1";
+    private static final String VERSION = "v0.10.2";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -1918,7 +1918,12 @@ public class Main {
         }
         else if (level.equals("W2")) {
             if (region == 0x1) {
-                return inventory.contains(Items.WHEELS);
+                if (location == 1) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.WHEELS);
+                }
             }
             else if (region == 0x5) {
                 return true;
@@ -1948,8 +1953,9 @@ public class Main {
         else if (level.equals("W3")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return inventory.contains(Items.BEANSTALK_SEEDS)
-                            || (canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                    // we'll add this back in for harder logic
+                    //        || (canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 1) {
                     return canGP(inventory);
@@ -2075,7 +2081,12 @@ public class Main {
                 return inventory.contains(Items.FIRE_EXTINGUISHER) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x8) {
-                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory);
+                if (location == 2) {
+                    return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.RUST_SPRAY) && canLift(inventory);
+                }
             }
             else if (region == 0xa) {
                 return canLift(inventory) && canGP(inventory);

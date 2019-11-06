@@ -239,6 +239,9 @@ public class Patcher {
             scrambleLevels(romBytes,worldMap,3,0x36eb);
         }
 
+        // also scramble the music table
+        scrambleLevels(romBytes, worldMap, 16, 0x3fe40);
+
         return romBytes;
     }
 
@@ -389,6 +392,64 @@ public class Patcher {
                 romBytes = swapColors(romBytes, palIdx + offset + j, switches[i+j/8], false);
             }
         }
+
+        // clean up a few colors to avoid ugly jagged edges
+        int[][] cleanups = {
+                {0x0,1,0,0,0},
+                {0x1,1,0,0,0},
+                {0x8,1,0,7,2},
+                {0xd,1,0,7,2},
+                {0xe,6,0,4,0},
+                {0xf,1,0,6,2},
+                {0x13,1,0,4,0},
+                {0x14,0,1,4,1},
+                {0x14,2,2,1,0},
+                {0x14,2,3,1,1},
+                {0x1b,2,1,4,0},
+                {0x1f,6,0,3,2},
+                {0x1f,7,0,1,2},
+                {0x1f,4,0,1,0},
+                {0x20,4,0,3,0},
+                {0x2b,4,0,7,0},
+                {0x25,2,0,1,0},
+                {0x26,1,0,4,0},
+                {0x32,4,0,6,2},
+                {0x35,2,0,1,1},
+                {0x3a,0,1,4,1},
+                {0x3b,2,1,4,0},
+                {0x3f,4,0,7,0},
+                {0x47,6,0,4,0},
+                {0x49,6,0,3,2},
+                {0x49,7,0,1,2},
+                {0x49,4,0,1,0},
+                {0x4a,4,0,3,0},
+                {0x4b,4,0,3,0},
+                {0x4c,4,0,3,0},
+                {0x50,6,0,4,1},
+                {0x50,6,1,7,0},
+                {0x54,2,0,1,0},
+                {0x64,2,0,1,1},
+                {0x6c,4,0,7,0},
+                {0x6d,4,0,7,0},
+                {0x6e,4,0,7,0},
+                {0x6f,4,0,7,0}
+        };
+
+        for (int[] cleanup : cleanups) {
+            int palSet = cleanup[0];
+            int targetPal = cleanup[1];
+            int targetCol = cleanup[2];
+            int srcPal = cleanup[3];
+            int srcCol = cleanup[4];
+
+            int setOffset = ((romBytes[tableIdx+(palSet*2)+1] & 0xff) << 8) + (romBytes[tableIdx+(palSet*2)] & 0xff);
+            int targetOffset = setOffset + targetPal*8 + targetCol*2;
+            int srcOffset = setOffset + srcPal*8 + srcCol*2;
+
+            romBytes[palIdx + targetOffset] = romBytes[palIdx + srcOffset];
+            romBytes[palIdx + targetOffset + 1] = romBytes[palIdx + srcOffset + 1];
+        }
+
         return romBytes;
     }
 
