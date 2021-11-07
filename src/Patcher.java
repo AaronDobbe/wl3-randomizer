@@ -21,6 +21,8 @@ public class Patcher {
      * @param music           ordered array of music ids
      * @param worldMap        ordered array of level ids
      * @param levelColors     list of ints from 0 to 100000 representing an amount to rotate level color hues by
+     * @param titleBGColors   list of ints from 0 to 100000 representing an amount to rotate title screen color hues by
+     * @param otherBGColors   list of ints from 0 to 100000 representing an amount to rotate misc screen color hues by
      * @param objColors       list of ints from 0 to 100000 representing an amount to rotate enemy/object color hues by
      * @param chestColors     list of ints from 0 to 100000 representing four hues, four saturations, and four values to apply to the four key/chest pairs (highlights and outlines will be auto-generated)
      * @param keyLocations    list of levels and their key placements
@@ -29,7 +31,23 @@ public class Patcher {
      * @param version         String representing current app version
      * @throws IOException    if something goes wrong reading from or writing to a ROM
      */
-    public static void patch(String vanillaPathStr, int[] treasures, String seed, byte[] playthrough, Integer[] music, Integer[] worldMap, int[] levelColors, int[] objColors, int[] chestColors, Level[] keyLocations, Integer[] golfOrder, boolean cutsceneSkip, String version) throws IOException {
+    public static void patch(String vanillaPathStr,
+                             int[] treasures,
+                             String seed,
+                             byte[] playthrough,
+                             Integer[] music,
+                             Integer[] worldMap,
+                             int[] levelColors,
+                             int[] titleBGColors,
+                             int[] otherBGColors,
+                             int[] objColors,
+                             int[] chestColors,
+                             Level[] keyLocations,
+                             Integer[] golfOrder,
+                             boolean cutsceneSkip,
+                             boolean revealSecrets,
+                             List<Integer> startingPowers,
+                             String version) throws IOException {
         Path vanillaPath = new File(vanillaPathStr).toPath();
         byte[] romBytes = Files.readAllBytes(vanillaPath);
         romBytes = applyPatch(romBytes, "baseDiff.json");
@@ -52,6 +70,12 @@ public class Patcher {
         if (levelColors != null) {
             romBytes = shuffleBGPalettes(romBytes,levelColors);
         }
+        if (titleBGColors != null) {
+            romBytes = shuffleTitleBGPalettes(romBytes,titleBGColors);
+        }
+        if (otherBGColors != null) {
+            romBytes = shuffleOtherBGPalettes(romBytes,otherBGColors);
+        }
         if (objColors != null) {
             romBytes = shuffleObjPalettes(romBytes, objColors);
         }
@@ -60,6 +84,12 @@ public class Patcher {
         }
         if (cutsceneSkip) {
             romBytes = applyPatch(romBytes,"cutSkipPatch.json");
+        }
+        if (startingPowers != null && startingPowers.size() > 0) {
+            romBytes = addStartingPowers(romBytes, startingPowers);
+        }
+        if (revealSecrets) {
+            romBytes = revealSecrets(romBytes);
         }
         savePatchedFile(romBytes, seed, version);
     }
@@ -454,6 +484,78 @@ public class Patcher {
     }
 
     /**
+     * Apply randomized colors to title screen.
+     */
+    private static byte[] shuffleTitleBGPalettes(byte[] romBytes, int[] colors) {
+        int tableIdx = 0x5002;
+        // rotate four key palettes; build the remaining four from those palettes
+        int[] entriesToShuffle = {1, 4, 5, 7};
+        for (int i = 0; i < entriesToShuffle.length; i++) {
+            romBytes = swapColors(romBytes, tableIdx + entriesToShuffle[i]*8, colors[i], false);
+        }
+        // treat 2 and 3 same as 1 and 4
+        romBytes = swapColors(romBytes, tableIdx + 2*8, colors[0], false);
+        romBytes = swapColors(romBytes, tableIdx + 3*8, colors[1], false);
+
+        int[] entriesToBuild = {0, 2, 3, 6};
+        int[][][] copies = {
+                {{5,0},{-1,-1},{4,2},{-1,-1}},
+                {{4,2},{-1,-1},{-1,-1},{-1,-1}},
+                {{-1,-1},{-1,-1},{4,2},{-1,-1}},
+                {{-1,-1},{5,1},{7,2},{-1,-1}}
+        };
+        for (int i = 0; i < entriesToBuild.length; i++) {
+            int pal = entriesToBuild[i];
+            for (int j = 0; j < copies[i].length; j++) {
+                int[] copy = copies[i][j];
+                if (copy[0] < 0) continue;
+                romBytes[tableIdx + pal*8 + j*2] = romBytes[tableIdx + copy[0]*8 + copy[1]*2];
+                romBytes[tableIdx + pal*8 + j*2 + 1] = romBytes[tableIdx + copy[0]*8 + copy[1]*2 + 1];
+            }
+        }
+
+        // this is weird, but we need to edit one sprite's color to not stand out (OBJ 2.2)
+        int titleSprIdx = 0x5042;
+        romBytes[titleSprIdx + 2*8 + 2*2] = romBytes[tableIdx + 2*8 + 2*2];
+        romBytes[titleSprIdx + 2*8 + 2*2 + 1] = romBytes[tableIdx + 2*8 + 2*2 + 1];
+
+        // also edit intro palettes to match
+        int introIdx = 0x4f82;
+        for (int i = 0; i < 20; i++) {
+            romBytes[introIdx + i*2] = romBytes[tableIdx];
+            romBytes[introIdx + i*2 + 1] = romBytes[tableIdx + 1];
+        }
+        for (int i = 0; i < 24; i++) {
+            romBytes[introIdx + 40 + i] = romBytes[tableIdx + 40 + i];
+        }
+
+        return romBytes;
+    }
+
+    /**
+     * Apply randomized colors to misc screens.
+     */
+    private static byte[] shuffleOtherBGPalettes(byte[] romBytes, int[] colors) {
+        int[] indexes = {
+                0x1ca1cf, // golf lobby
+                0x1ca08f, // golf
+                0x1f4182, // pause
+                0x1e0378, // results 1
+                0xd50a4,  // results 2
+                0x1f628c // save
+        };
+
+        for (int i = 0; i < indexes.length; i++) {
+            int idx = indexes[i];
+            for (int j = 0; j < 8; j++) {
+                romBytes = swapColors(romBytes, idx + j*8, colors[i],false);
+            }
+        }
+
+        return romBytes;
+    }
+
+    /**
      * Rotate sprite palettes by the given amounts.
      */
     private static byte[] shuffleObjPalettes(byte[] romBytes, int[] colors) {
@@ -792,6 +894,305 @@ public class Patcher {
             }
             offset++;
         }
+        return romBytes;
+    }
+
+    /**
+     * Update game initialization routine to award Wario some treasure on game start.
+     */
+    private static byte[] addStartingPowers(byte[] romBytes, List<Integer> startingPowers) throws IOException {
+        romBytes = applyPatch(romBytes,"powerPatch.json");
+        int itemsIdx = 0x83fb3;
+        int powersAIdx = 0x83fe2;
+        int powersBIdx = 0x83fe6;
+        int treasureCountIdx = 0x83ff5;
+
+        for (Integer item : startingPowers) {
+            // find which inventory bucket and slot this belongs in
+            int bucket = item / 8;
+            int slot = item % 8;
+
+            // place item in correct slot
+            romBytes[itemsIdx + bucket] |= ((1 << slot) & 0xff);
+        }
+
+        byte powersA = 0x00;
+        byte powersB = 0x00;
+        if (startingPowers.contains(Items.BLUE_OVERALLS)) powersA |= 0x01;
+        if (startingPowers.contains(Items.RED_OVERALLS)) powersA |= 0x02;
+        if (startingPowers.contains(Items.JUMP_BOOTS)) powersA |= 0x04;
+        if (startingPowers.contains(Items.RED_GLOVES)) powersB |= 0x01;
+        if (startingPowers.contains(Items.GOLD_GLOVES)) powersB |= 0x02;
+        if (startingPowers.contains(Items.SPIKED_HELMET)) powersB |= 0x04;
+        if (startingPowers.contains(Items.GARLIC)) powersB |= 0x08;
+        if (startingPowers.contains(Items.FROG_GLOVES)) powersB |= 0x10;
+        if (startingPowers.contains(Items.SWIM_FINS)) powersB |= 0x20;
+
+        romBytes[powersAIdx] = powersA;
+        romBytes[powersBIdx] = powersB;
+        // store initial treasure count as binary-coded decimal
+        romBytes[treasureCountIdx] = (byte)(((startingPowers.size()/10 & 0xff) << 4) + (startingPowers.size()%10 & 0xff));
+
+        return romBytes;
+    }
+
+    /**
+     * Update level data to reveal hidden pathways to the player.
+     */
+    private static byte[] revealSecrets(byte[] romBytes) {
+        int tilesetTable  = 0xC04C5;
+        int effectsTable  = 0xC8000;
+        int subtilesTable = 0xC090D;
+        int flagsTable    = 0xC09D1;
+        // bank -> location -> data
+        SortedMap<Integer, SortedMap<Integer, List<Byte>>> compressedGfxData = new TreeMap<>();
+        for (int tilesetId = 1; tilesetId <= 0x99; tilesetId++) {
+            int tilesetEntry = tilesetTable + tilesetId*2;
+            int tilesetDataOffset = ((romBytes[tilesetEntry+1] & 0xff) << 8) + (romBytes[tilesetEntry] & 0xff);
+            int tilesetDataLocation = 0xC0000 + tilesetDataOffset - 0x4000;
+            int subtilesIdx = romBytes[tilesetDataLocation] & 0xff;
+            int flagsIdx = romBytes[tilesetDataLocation+1] & 0xff;
+            int dataBank = 0x38 + subtilesIdx/6;
+
+            byte[] subtiles = new byte[0x200];
+            byte[] effects = new byte[0x100];
+            byte[] flags = new byte[0x200];
+            int compressedFlagsSize = 0;
+
+            int subtilesLocation = ((romBytes[subtilesTable+subtilesIdx*2+1] & 0xff) << 8)
+                    + (romBytes[subtilesTable+subtilesIdx*2] & 0xff);
+            subtilesLocation = subtilesLocation - 0x4000 + (dataBank * 0x4000);
+            System.arraycopy(romBytes, subtilesLocation + 0, subtiles, 0, subtiles.length);
+            int effectsLocation = ((romBytes[effectsTable+subtilesIdx*2+1] & 0xff) << 8)
+                    + (romBytes[effectsTable+subtilesIdx*2] & 0xff);
+            int effectsBank = (subtilesIdx >= 0x3f) ? 0x50 : 0x32;
+            effectsLocation = effectsLocation - 0x4000 + (effectsBank * 0x4000);
+            System.arraycopy(romBytes, effectsLocation + 0, effects, 0, effects.length);
+            int flagsLocation = ((romBytes[flagsTable+flagsIdx*2+1] & 0xff) << 8)
+                    + (romBytes[flagsTable+flagsIdx*2] & 0xff);
+            flagsLocation = flagsLocation - 0x4000 + (dataBank * 0x4000);
+            int flagsPtr = 0;
+            int flagsProcessed = 0;
+            while (true) {
+                int indicator = romBytes[flagsLocation + flagsPtr] & 0xff;
+                flagsPtr++;
+                if (indicator == 0x00) {
+                    break;
+                }
+                else if ((indicator & 0x80) > 0) {
+                    indicator &= 0x7f;
+                    for (int i = 0; i < indicator; i++) {
+                        flags[flagsProcessed] = romBytes[flagsLocation+flagsPtr];
+                        flagsPtr++;
+                        flagsProcessed++;
+                    }
+                }
+                else {
+                    for (int i = 0; i < indicator; i++) {
+                        flags[flagsProcessed] = romBytes[flagsLocation+flagsPtr];
+                        flagsProcessed++;
+                    }
+                    flagsPtr++;
+                }
+            }
+            if (flagsProcessed != 0x200) {
+                System.out.println("Error in decompression");
+            }
+            for (int metatileIdx = 0; metatileIdx < effects.length/2; metatileIdx++) {
+                int effect = ((effects[metatileIdx*2+1] & 0xff) << 8) + (effects[metatileIdx*2] & 0xff);
+                byte[] newSubtiles = null;
+                if ((effect >= 0x49FB && effect <= 0x4A17) || (effect >= 0x4CB4 && effect <= 0x4CD0)) {
+                    // regular break
+                    newSubtiles = new byte[]{0x68, 0x69, 0x78, 0x79};
+                }
+                else if (effect >= 0x4D60 && effect <= 0x4D7C) {
+                    // hard break
+                    newSubtiles = new byte[]{0x6A, 0x6B, 0x7A, 0x7B};
+                }
+                else if (effect >= 0x4E0E && effect <= 0x4E2A) {
+                    // big break BL
+                    newSubtiles = new byte[]{0x48, 0x63, 0x78, 0x4A};
+                }
+                else if (effect >= 0x4EA2 && effect <= 0x4EBE) {
+                    // big break BR
+                    newSubtiles = new byte[]{0x63, 0x49, 0x4A, 0x79};
+                }
+                else if (effect >= 0x4F5F && effect <= 0x4F7B) {
+                    // big break TR
+                    newSubtiles = new byte[]{0x3A, 0x69, 0x63, 0x49};
+                }
+                else if (effect >= 0x4FF3 && effect <= 0x500F) {
+                    // big break TL
+                    newSubtiles = new byte[]{0x68, 0x3A, 0x48, 0x63};
+                }
+                else if (effect >= 0x50E0 && effect <= 0x50FC) {
+                    // H big break BL
+                    newSubtiles = new byte[]{0x5A, 0x7D, 0x7A, 0x4B};
+                }
+                else if (effect >= 0x5195 && effect <= 0x51B1) {
+                    // H big break BR
+                    newSubtiles = new byte[]{0x7D, 0x5B, 0x4B, 0x7B};
+                }
+                else if (effect >= 0x5273 && effect <= 0x528F) {
+                    // H big break TR
+                    newSubtiles = new byte[]{0x3B, 0x6B, 0x7D, 0x5B};
+                }
+                else if (effect >= 0x5328 && effect <= 0x5344) {
+                    // H big break TL
+                    newSubtiles = new byte[]{0x6A, 0x3B, 0x5A, 0x7D};
+                }
+                else if (effect >= 0x53FB && effect <= 0x5417) {
+                    // throw break
+                    newSubtiles = new byte[]{0x5C, 0x5D, 0x6C, 0x6D};
+                }
+                else if (effect >= 0x544B && effect <= 0x5467) {
+                    // fire break
+                    newSubtiles = new byte[]{0x5E, 0x5F, 0x6E, 0x6F};
+                }
+                else if (effect >= 0x5497 && effect <= 0x54B3) {
+                    // fat break
+                    newSubtiles = new byte[]{0x3E, 0x3F, 0x4E, 0x4F};
+                }
+                else if (effect >= 0x4A9A && effect <= 0x4C7C) {
+                    // snow break
+                    newSubtiles = (flags[metatileIdx*4] != 0x05) ? new byte[]{0x3C, 0x3D, 0x4C, 0x4D} : null;
+                }
+                else if (effect >= 0x54E4 && effect <= 0x55D7) {
+                    // yarn break
+                    newSubtiles = (flags[metatileIdx*4] != 0x05) ? new byte[]{0x3C, 0x3D, 0x4C, 0x4D} : null;
+                }
+
+                if (newSubtiles != null && (flags[metatileIdx*4] != 0x0D || flags[metatileIdx*4+1] != 0x0D)) {
+                    System.arraycopy(newSubtiles, 0, subtiles, metatileIdx * 4 + 0, newSubtiles.length);
+
+                    // now we need to deal with the flags...........
+                    for (int i = 0; i < 4; i++) {
+                        flags[metatileIdx*4 + i] &= 0x07;
+                        flags[metatileIdx*4 + i] |= 0x08;
+                    }
+                }
+            }
+
+            // update subtiles
+            List<Byte> subtileList = new Vector<>();
+            for (byte subtile : subtiles) {
+                subtileList.add(subtile);
+            }
+            compressedGfxData.putIfAbsent(dataBank, new TreeMap<>());
+            compressedGfxData.get(dataBank).putIfAbsent(subtilesLocation, subtileList);
+
+            // now we need to recompress flags
+            int newCount = 0;
+            int newPtr = 0;
+            int lookaheadPtr = 0;
+            int last = 0x00;
+            int run = 0;
+            List<Byte> compressedFlagsList = new Vector<>();
+
+            while (newPtr < flags.length) {
+                if (lookaheadPtr >= flags.length) {
+                    compressedFlagsList.add((byte)((lookaheadPtr - newPtr) | 0x80));
+                    newCount++;
+                    while (newPtr < lookaheadPtr) {
+                        compressedFlagsList.add(flags[newPtr]);
+                        newCount++;
+                        newPtr++;
+                    }
+                }
+                else if ((flags[lookaheadPtr] & 0xff) == last) {
+                    run++;
+                    lookaheadPtr++;
+
+                    if (run >= 3) {
+                        lookaheadPtr -= 3;
+                        if (lookaheadPtr > newPtr) {
+                            compressedFlagsList.add((byte) ((lookaheadPtr - newPtr) | 0x80));
+                            newCount++;
+                            while (newPtr < lookaheadPtr) {
+                                compressedFlagsList.add(flags[newPtr]);
+                                newCount++;
+                                newPtr++;
+                            }
+                        }
+                        while (lookaheadPtr < flags.length && (lookaheadPtr-newPtr < 0x7f) && (flags[lookaheadPtr] & 0xff) == last) {
+                            lookaheadPtr++;
+                        }
+                        compressedFlagsList.add((byte)(lookaheadPtr - newPtr));
+                        compressedFlagsList.add((byte)(last));
+                        newCount += 2;
+                        newPtr = lookaheadPtr;
+
+                        run = 0;
+                    }
+                }
+                else {
+                    last = flags[lookaheadPtr] & 0xff;
+                    lookaheadPtr++;
+                    run = 1;
+                }
+            }
+            compressedFlagsList.add((byte)0x00);
+            newCount++;
+
+            compressedGfxData.get(dataBank).putIfAbsent(flagsLocation,compressedFlagsList);
+        }
+
+        // All level gfx data has been processed, edited, and recompressed
+        // some data will unavoidably end up larger than it was previously when recompressed,
+        // so we must move tileset data around to make space (and update pointers to said data!)
+
+        for (Integer dataBank : compressedGfxData.keySet()) {
+            int writePtr = -1;
+            int bankStart = dataBank * 0x4000;
+            for (Map.Entry<Integer, List<Byte>> dataEntry : compressedGfxData.get(dataBank).entrySet()) {
+                int location = dataEntry.getKey();
+                int relLocation = location % 0x4000;
+                List<Byte> data = dataEntry.getValue();
+
+                if (writePtr < 0) {
+                    writePtr = relLocation;
+                }
+                relLocation += 0x4000;
+                int newLocation = bankStart + writePtr;
+                for (Byte dataByte : data) {
+                    romBytes[bankStart + writePtr] = dataByte;
+                    writePtr++;
+                }
+                newLocation = (newLocation % 0x4000) + 0x4000;
+
+                // now update pointers
+                int table = 0;
+                boolean subtiles = false;
+                if (data.size() == 0x200) {
+                    // subtile data
+                    table = subtilesTable;
+                    subtiles = true;
+                }
+                else {
+                    table = flagsTable;
+                }
+                for (int tilesetId = 1; tilesetId <= 0x99; tilesetId++) {
+                    int tilesetEntry = tilesetTable + tilesetId*2;
+                    int tilesetDataOffset = ((romBytes[tilesetEntry+1] & 0xff) << 8) + (romBytes[tilesetEntry] & 0xff);
+                    int tilesetDataLocation = 0xC0000 + tilesetDataOffset - 0x4000;
+                    int subtilesIdx = romBytes[tilesetDataLocation] & 0xff;
+                    int flagsIdx = romBytes[tilesetDataLocation+1] & 0xff;
+                    int thisBank = 0x38 + subtilesIdx/6;
+                    int idx = (subtiles) ? subtilesIdx : flagsIdx;
+                    if (thisBank != dataBank) {
+                        continue;
+                    }
+
+                    int readLocation = ((romBytes[table + idx*2 + 1] & 0xFF) << 8) +
+                            (romBytes[table + idx*2] & 0xFF);
+                    if (readLocation == relLocation) {
+                        romBytes[table + idx*2 + 1] = (byte)(newLocation >>> 8);
+                        romBytes[table + idx*2] = (byte)(newLocation & 0xff);
+                    }
+                }
+            }
+        }
+
         return romBytes;
     }
 

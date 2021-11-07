@@ -6,13 +6,15 @@ public class KeyLocation {
     private int x;
     private int y;
     private int subLocation;
+    private String name;
 
-    public KeyLocation(int region, int sector, int x, int y, int subLocation) {
+    public KeyLocation(int region, int sector, int x, int y, int subLocation, String name) {
         this.region = region;
         this.sector = sector;
         this.x = x;
         this.y = y;
         this.subLocation = subLocation;
+        this.name = name;
     }
 
     public int getRegion() {
@@ -33,5 +35,9 @@ public class KeyLocation {
 
     public int getSubLocation() {
         return subLocation;
+    }
+
+    public String getName() {
+        return name;
     }
 }

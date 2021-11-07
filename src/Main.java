@@ -18,6 +18,17 @@ public class Main {
     private static Level[] allKeyLocations;
     private static Level[] finalKeyLocations;
     private static boolean keyShuffle;
+    private static boolean enableNewLogic;
+    private static boolean openMode;
+    private static boolean utilityStart;
+    private static boolean itemStart;
+    private static boolean mapShuffle;
+    private static boolean powerfulStart;
+    private static boolean fullPowerStart;
+    private static boolean axeStart;
+    private static int difficulty;
+    private static List<Integer> startingItems;
+    private static final int NUM_POWERS = 3;
 
     private static int fails = 0;
 
@@ -25,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.10.2";
+    private static final String VERSION = "v0.11.0";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -108,7 +119,7 @@ public class Main {
         for (int i = 0; i < 25; i++) {
             mapList.add(i);
         }
-        boolean mapShuffle = options.containsKey("mapShuffle") && "true".equals(options.get("mapShuffle"));
+        mapShuffle = options.containsKey("mapShuffle") && "true".equals(options.get("mapShuffle"));
 
         // keep unshuffled lists in case we need re-randomization
         List<Integer> pureInventory = new ArrayList<>(inventory);
@@ -137,106 +148,89 @@ public class Main {
         }
         Random rng = new Random(seed);
 
+        openMode = options.containsKey("openStart") && !options.get("openStart").equals("false");
+        utilityStart = options.containsKey("utilityStart") && !options.get("utilityStart").equals("false");
+        axeStart = !openMode && options.containsKey("axeStart") && options.get("axeStart").equals("true");
+        powerfulStart = options.containsKey("powerStart") && !options.get("powerStart").equals("false");
+        fullPowerStart = options.containsKey("powerStart") && options.get("powerStart").equals("full");
+        enableNewLogic = true;
+        itemStart = openMode || powerfulStart || utilityStart;
+
+        switch (options.get("difficulty")) {
+            case "easy":
+                difficulty = Difficulty.EASY;
+                break;
+            case "normal":
+                difficulty = Difficulty.NORMAL;
+                break;
+            case "hard":
+                difficulty = Difficulty.HARD;
+                break;
+            case "minorglitches":
+                difficulty = Difficulty.S_HARD;
+                break;
+        }
+
         // randomize lists of non-junk items and locations
-        Collections.shuffle(inventory, rng);
-        Collections.shuffle(locations, rng);
-        if (mapShuffle) {
-            mapList = shuffleMap(mapList,rng);
-        }
-
-        worldMap = mapList.toArray(new Integer[25]);
-
-        List<List<Integer>> keyIndexes = null;
-        if (keyShuffle) {
-            // prepare key index (ordered list of locations per level where keys will be attempted to be placed)
-            keyIndexes = new ArrayList<>();
-            for (int i = 0; i < 25; i++) {
-                List<Integer> subIndex = new ArrayList<>();
-                for (int j = 0; j < 12; j++) {
-                    subIndex.add(j);
-                }
-                Collections.shuffle(subIndex,rng);
-                keyIndexes.add(subIndex);
-            }
-        }
-
         List<Integer> leftInventory = new Vector<>();
-        boolean axeStart = options.containsKey("axeStart") && options.get("axeStart").equals("true");
-        if (axeStart) {
-            // pre-place the axe in the gray chest of level 0
-            inventory.remove(new Integer(Items.AXE));
-            locations.remove(new Integer(worldMap[0]*4));
-            leftInventory.add(Items.AXE);
-            Collections.replaceAll(treasures,Items.AXE,null);
-            treasures.set(worldMap[0]*4, Items.AXE);
-            if (keyShuffle) {
-                // also place gray key
-                placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
-            }
-        }
-        int numFails=0;
+        List<List<Integer>> keyIndexes = new ArrayList<>();
+        prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
+
+        int attempts = 0;
         // attempt to place treasures
-        boolean bossBoxes = options.containsKey("bossBoxes") && options.get("bossBoxes").equals("true");
+        boolean bossBoxes = options.containsKey("restrictedMusicBoxes") && options.get("restrictedMusicBoxes").equals("true");
         while (((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, levelList, keyIndexes, 5))
-                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures, levelList, keyIndexes)))) {
-            // could not finish in reasonable time
+                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures, levelList, keyIndexes)))
+                || !testDifficulty(itemStart)) {
+            // could not finish in reasonable time, or seed difficulty was incorrect
             // if no user seed provided, generate a new seed and re-randomize using that
             if (userSeed != null && userSeed.length() > 0) {
                 gui.log("Invalid seed. Please double-check the seed and try again.");
                 return;
             }
 
-            numFails++;
+            attempts++;
+            finalTreasures = new int[100];
+            finalKeyLocations = new Level[25];
             seed = seedRNG.nextLong();
             rng = new Random(seed);
             inventory = new ArrayList<>(pureInventory);
+            leftInventory = new Vector<>();
             locations = new ArrayList<>(pureLocations);
             mapList = new ArrayList<>(pureMapList);
             levelList = cloneLevelList(pureLevelList);
-            Collections.shuffle(inventory, rng);
-            Collections.shuffle(locations, rng);
-            if (mapShuffle) {
-                mapList = shuffleMap(mapList,rng);
-            }
-            worldMap = mapList.toArray(new Integer[25]);
-
-            if (keyShuffle) {
-                keyIndexes = new ArrayList<>();
-                for (int i = 0; i < 25; i++) {
-                    List<Integer> subIndex = new ArrayList<>();
-                    for (int j = 0; j < 12; j++) {
-                        subIndex.add(j);
-                    }
-                    Collections.shuffle(subIndex,rng);
-                    keyIndexes.add(subIndex);
-                }
-            }
-
-            if (axeStart) {
-                inventory.remove(new Integer(Items.AXE));
-                locations.remove(new Integer(worldMap[0]*4));
-                leftInventory.add(Items.AXE);
-                Collections.replaceAll(treasures,Items.AXE,null);
-                treasures.set(worldMap[0]*4, Items.AXE);
-                if (keyShuffle) {
-                    placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
-                }
-            }
+            keyIndexes = new ArrayList<>();
             fails = 0;
+
+            prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
         }
 
         // items have been placed, now shuffle list of junk and use it to fill in the remaining locations
-        Collections.shuffle(junkList,rng);
         boolean excludeJunk = options.containsKey("excludeJunk") && "true".equals(options.get("excludeJunk"));
 
-        for (Integer junkItem : junkList) {
+        List<Integer> miscItems = new ArrayList<>(junkList);
+        for (Integer startingItem : startingItems) {
+            if (!miscItems.contains(startingItem)) {
+                miscItems.add(Items.EMPTY);
+            }
+        }
+
+        Collections.shuffle(miscItems,rng);
+
+        int nextLocation = 0;
+        for (Integer junkItem : miscItems) {
             if (excludeJunk && junkItem != Items.TIME_BUTTON && junkItem != Items.MAGNIFYING_GLASS) {
                 // if junk items are excluded, replace with empty boxes
                 junkItem = Items.EMPTY;
             }
-            for (int i = 0; i < 100; i++) {
+            if (utilityStart && (junkItem == Items.TIME_BUTTON || junkItem == Items.MAGNIFYING_GLASS)) {
+                junkItem = Items.EMPTY;
+            }
+
+            for (int i = nextLocation; i < 100; i++) {
                 if (finalTreasures[i] == 0) {
                     finalTreasures[i] = junkItem;
+                    nextLocation = i + 1;
                     break;
                 }
             }
@@ -244,18 +238,18 @@ public class Main {
 
         // build playthrough to set up hints if requested
         byte[] playthrough = null;
-        if (options.containsKey("hints") && !options.get("hints").equals("vanilla")) {
+        if (options.containsKey("hints") && !options.get("hints").equals("unhelpful")) {
             boolean strategicHints = options.get("hints").equals("strategic");
-            playthrough = buildPlaythrough(rng, strategicHints);
+            playthrough = buildPlaythrough(rng, strategicHints, itemStart);
         }
 
         // randomize music if requested
         Integer[] music = null;
-        if (options.containsKey("music")) {
-            if (options.get("music").equals("shuffled")) {
+        if (options.containsKey("musicShuffle")) {
+            if (options.get("musicShuffle").equals("on")) {
                 music = shuffleMusic(false, rng);
             }
-            else if (options.get("music").equals("chaos")) {
+            else if (options.get("musicShuffle").equals("chaos")) {
                 music = shuffleMusic(true, rng);
             }
         }
@@ -263,6 +257,8 @@ public class Main {
         // randomize level palettes if requested
         // 2336 numbers
         int[] paletteSwitches = null;
+        int[] titleSwitches = null;
+        int[] otherSwitches = null;
         if (options.containsKey("levelColors") && "true".equals(options.get("levelColors"))) {
             // There are some sets of palettes that we want to ensure get the same transformation.
             // This is usually because of rooms that cycle through palettes (e.g. N1 underground),
@@ -308,6 +304,16 @@ public class Main {
                 if (assocIdx > -1) {
                     assocSwitches[assocIdx][i%8] = paletteSwitches[i];
                 }
+            }
+
+            titleSwitches = new int[4];
+            for (int i = 0; i < titleSwitches.length; i++) {
+                titleSwitches[i] = rng.nextInt(100000);
+            }
+
+            otherSwitches = new int[6];
+            for (int i = 0; i < otherSwitches.length; i++) {
+                otherSwitches[i] = rng.nextInt(100000);
             }
         }
 
@@ -363,6 +369,7 @@ public class Main {
         }
 
         boolean cutsceneSkip = options.containsKey("cutsceneSkip") && "true".equals(options.get("cutsceneSkip"));
+        boolean revealSecrets = options.containsKey("revealSecrets") && "true".equals(options.get("revealSecrets"));
 
         // patch vanilla ROM file and create randomized ROM
         try {
@@ -373,11 +380,15 @@ public class Main {
                     music,
                     mapShuffle ? worldMap : null,
                     paletteSwitches,
+                    titleSwitches,
+                    otherSwitches,
                     objColors,
                     chestColors,
                     keyShuffle ? finalKeyLocations : null,
                     golfOrder,
                     cutsceneSkip,
+                    revealSecrets,
+                    startingItems,
                     VERSION);
         } catch (IOException e) {
             gui.log("Error occurred while generating randomized game: " + e.getMessage());
@@ -386,6 +397,106 @@ public class Main {
 
         gui.log("Generated randomized game with seed " + encodeSeed(seed));
         gui.log("Randomized ROM has been saved as WL3-randomizer-" + VERSION + "-" + encodeSeed(seed) + ".gbc");
+
+        try {
+            SpoilerLog.writeSpoiler(startingItems, finalTreasures, keyShuffle ? finalKeyLocations : null,
+                    mapShuffle ? worldMap : null, encodeSeed(seed),
+                    buildPlaythrough(null, false, itemStart),
+                    options);
+            gui.log("Wrote spoiler log to wl3spoiler-"+encodeSeed(seed)+".txt");
+        }
+        catch (IOException e) {
+            gui.log("Error occurred while writing spoiler log: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Initialize lists in preparation for the game logic to place items.
+     */
+    private static void prepareLists(List<Integer> inventory,
+                                     List<Integer> leftInventory,
+                                     List<Integer> locations,
+                                     List<Integer> treasures,
+                                     List<Integer> mapList,
+                                     List<Level> levelList,
+                                     List<List<Integer>> keyIndexes,
+                                     Random rng) {
+        Collections.shuffle(inventory, rng);
+        Collections.shuffle(locations, rng);
+        if (itemStart) {
+            startingItems = new LinkedList<>();
+            // determine starting items
+            if (fullPowerStart) {
+                for (int i = Items.SWIM_FINS; i <= Items.SPIKED_HELMET; i++) {
+                    startingItems.add(i);
+                }
+            }
+            else if (powerfulStart) {
+                while (startingItems.size() < NUM_POWERS) {
+                    int power = rng.nextInt(9) + Items.SWIM_FINS;
+                    if (startingItems.contains(power) ||
+                            (power == Items.SWIM_FINS && !startingItems.contains(Items.FROG_GLOVES)) ||
+                            (power == Items.GOLD_GLOVES && !startingItems.contains(Items.RED_GLOVES)) ||
+                            (power == Items.RED_OVERALLS && !startingItems.contains(Items.BLUE_OVERALLS))) {
+                        continue;
+                    }
+                    startingItems.add(power);
+                }
+            }
+
+            if (openMode) {
+                List<Integer> openItems = Arrays.asList(Items.AXE,
+                        Items.KEYSTONE_L, Items.KEYSTONE_R,
+                        Items.COG_WHEEL_A, Items.COG_WHEEL_B,
+                        Items.MIST_FAN, Items.TORCH);
+
+                startingItems.addAll(openItems);
+            }
+
+            if (utilityStart) {
+                startingItems.add(Items.MAGNIFYING_GLASS);
+                startingItems.add(Items.TIME_BUTTON);
+            }
+
+            for (int item : startingItems) {
+                inventory.remove(new Integer(item));
+                leftInventory.add(item);
+                Collections.replaceAll(treasures, item,null);
+            }
+        }
+        else {
+            startingItems = new Vector<>();
+        }
+        if (mapShuffle) {
+            mapList = shuffleMap(mapList,itemStart,rng);
+        }
+
+        worldMap = mapList.toArray(new Integer[25]);
+
+        if (keyShuffle) {
+            // prepare key index (ordered list of locations per level where keys will be attempted to be placed)
+            for (int i = 0; i < 25; i++) {
+                List<Integer> subIndex = new ArrayList<>();
+                for (int j = 0; j < 12; j++) {
+                    subIndex.add(j);
+                }
+                Collections.shuffle(subIndex,rng);
+                keyIndexes.add(subIndex);
+            }
+        }
+
+        if (axeStart) {
+            // pre-place the axe in the gray chest of level 0
+            inventory.remove(new Integer(Items.AXE));
+            locations.remove(new Integer(worldMap[0]*4));
+            leftInventory.add(Items.AXE);
+            Collections.replaceAll(treasures,Items.AXE,null);
+            treasures.set(worldMap[0]*4, Items.AXE);
+            if (keyShuffle) {
+                // also place gray key
+                placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
+            }
+        }
     }
 
     /**
@@ -463,14 +574,29 @@ public class Main {
                 73, // muddee
                 74  // jamano
         };
+        boolean powersRemain = false;
+        if (bossBoxes == 0 && enableNewLogic) {
+            for (Integer item : rightInventory) {
+                if (item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                    powersRemain = true;
+                    break;
+                }
+            }
+        }
         List<Integer> bosses = Arrays.asList(bossArray);
         for (Integer item : rightInventory) {
             if (bossBoxes > 0 && item > Items.MUSIC_BOX_5) {
                 continue;
             }
+            if (powersRemain && !(item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET)) {
+                continue;
+            }
             List<Integer> nextRightInventory = new Vector<>(rightInventory);
             nextRightInventory.remove(item);
             List<Integer> curInventory = new Vector<>(nextRightInventory);
+            if (itemStart) {
+                curInventory.addAll(startingItems);
+            }
             List<Integer> candidateLocations = new Vector<>();
             List<Integer> checkedList = new Vector<>();
             boolean foundLocation;
@@ -559,6 +685,9 @@ public class Main {
                                 finalTreasures[i] = nextTreasures.get(i);
                             }
                         }
+                        if (itemStart) {
+                            nextTreasures.addAll(startingItems);
+                        }
                         for (int i = 0; i < finalKeyLocations.length; i++) {
                             finalKeyLocations[i] = nextLevelList.get(i);
                             for (int j = 0; j < 4; j++) {
@@ -616,8 +745,8 @@ public class Main {
             }
 
             if (!clash) {
-                if ((canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,true, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,true)) ||
-                        (canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,false, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,false))) {
+                if ((canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,true, keyNum, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,true)) ||
+                        (canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,false, keyNum, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,false))) {
                     level.setLocation(keyNum, candidate);
                     level.setInventory(keyNum, inventory);
                     return true;
@@ -642,6 +771,13 @@ public class Main {
     private static boolean placeItemsLeft(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, List<Level> levelList, List<List<Integer>> keyIndexes) {
         if (fails >= (keyShuffle ? 500 : 500)) {
             return false;
+        }
+        int cutoff = enableNewLogic ? 60 : 60;
+        int numPowers = 0;
+        for (Integer item : leftInventory) {
+            if (item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                numPowers++;
+            }
         }
         //boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
         for (Integer location : locations) {
@@ -708,6 +844,9 @@ public class Main {
             }
 
             for (Integer item : rightInventory) {
+                if (enableNewLogic && numPowers > -1 && item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                    continue;
+                }
                 if (forceTorch && item != Items.TORCH) {
                     continue;
                 }
@@ -765,6 +904,9 @@ public class Main {
                             finalTreasures[i] = nextTreasures.get(i);
                         }
                     }
+                    if (itemStart) {
+                        nextTreasures.addAll(startingItems);
+                    }
                     for (int i = 0; i < finalKeyLocations.length; i++) {
                         finalKeyLocations[i] = nextLevelList.get(i);
                         for (int j = 0; j < 4; j++) {
@@ -778,10 +920,10 @@ public class Main {
                     }
                     return true;
                 }
-                else if (nextRightInventory.size() < 60 && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures,nextLevelList,keyIndexes, 0)) {
+                else if (nextRightInventory.size() < cutoff && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures,nextLevelList,keyIndexes, 0)) {
                     return true;
                 }
-                else if ((nextRightInventory.size() >= 60) && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures,nextLevelList,keyIndexes)) {
+                else if ((nextRightInventory.size() >= cutoff) && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures,nextLevelList,keyIndexes)) {
                     return true;
                 }
                 else if (fails >= (keyShuffle ? 500 : 500)) {
@@ -834,20 +976,28 @@ public class Main {
      * @param rng         random object to use
      * @return A shuffled list of locations
      */
-    private static List<Integer> shuffleMap(List<Integer> initialMap, Random rng) {
+    private static List<Integer> shuffleMap(List<Integer> initialMap, boolean powerStart, Random rng) {
         Vector<Integer> shuffledMap = new Vector<>(initialMap);
         Collections.shuffle(shuffledMap, rng);
-        Integer firstLevel = 0;
-        Integer[] firstLevelsArr = {0, 1, 2, 4, 6, 7, 9, 13, 14, 15, 17, 18, 19, 21, 24};
-        List<Integer> firstLevels = Arrays.asList(firstLevelsArr);
-        for (Integer level : shuffledMap) {
-            if (firstLevels.contains(level)) {
-                firstLevel = level;
-                break;
+        worldMap = shuffledMap.toArray(new Integer[25]);
+        if (!fullPowerStart) {
+            Integer firstLevel = 0;
+//            Integer[] firstLevelsArr = {0, 1, 2, 4, 6, 7, 9, 13, 14, 15, 17, 18, 19, 21, 24};
+//            List<Integer> firstLevels = Arrays.asList(firstLevelsArr);
+
+            for (Integer level : shuffledMap) {
+//                if (firstLevels.contains(level)) {
+                if (canAccess(locationNames[level*4], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+1], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+2], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+3], startingItems, null, false, true)) {
+                    firstLevel = level;
+                    break;
+                }
             }
+            shuffledMap.remove(firstLevel);
+            shuffledMap.insertElementAt(firstLevel, 0);
         }
-        shuffledMap.remove(firstLevel);
-        shuffledMap.insertElementAt(firstLevel,0);
         return shuffledMap;
     }
 
@@ -917,14 +1067,79 @@ public class Main {
     }
 
     /**
+     * Tests the difficulty of the seed.
+     *
+     * @param powerStart Whether or not Wario began the game with items
+     * @return true if the difficulty is appropriate for the currently set level
+     */
+    private static boolean testDifficulty(boolean powerStart) {
+        int targetDifficulty = difficulty;
+        List<Integer> inventory = new Vector<>();
+        if (powerStart) {
+            inventory.addAll(startingItems);
+        }
+        List<Integer> locationsChecked = new Vector<>();
+
+        List<Level> finalKeyLocationList = Arrays.asList(finalKeyLocations);
+
+        difficulty = Difficulty.EASY;
+        int[] blockers = {-1, -1, -1, -1};
+        int[] winBlockers = {0, 0, 0, 0};
+        while (difficulty <= Difficulty.S_HARD) {
+            boolean gotItem;
+            do {
+                List<Integer> newItems = new Vector<>();
+                gotItem = false;
+                for (int i = 0; i < finalTreasures.length; i++) {
+
+                    if (locationsChecked.contains(i)) continue;
+                    if (canAccess(locationNames[i], inventory, finalKeyLocationList, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
+                        locationsChecked.add(i);
+                        gotItem = true;
+                        difficulty = Difficulty.EASY;
+                        newItems.add(finalTreasures[i]);
+                        if (finalTreasures[i] == Items.TORCH) break;
+                    }
+                }
+                inventory.addAll(newItems);
+            } while (gotItem);
+            blockers[difficulty]++;
+            if (!inventory.containsAll(Arrays.asList(Items.MUSIC_BOX_1,
+                    Items.MUSIC_BOX_2,
+                    Items.MUSIC_BOX_3,
+                    Items.MUSIC_BOX_4,
+                    Items.MUSIC_BOX_5,
+                    Items.AXE,
+                    Items.GOLD_GLOVES)) ||
+                !canGP(inventory)) {
+                winBlockers[difficulty]++;
+            }
+            difficulty++;
+        }
+        difficulty = targetDifficulty;
+        for (int i = 0; i < 4; i++) {
+            if (i == targetDifficulty - 1 && winBlockers[i] < 2 && difficulty > Difficulty.NORMAL) {
+                return false;
+            }
+            else if (i >= targetDifficulty && blockers[i] > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Build a playthrough to set up hints.
      *
      * @param rng random object to use
      * @param strategic true for "strategic" hints
      * @return An array of treasures, in the order they should be hinted at
      */
-    private static byte[] buildPlaythrough(Random rng, boolean strategic) {
+    private static byte[] buildPlaythrough(Random rng, boolean strategic, boolean powerStart) {
         List<Integer> inventory = new Vector<>();
+        if (powerStart) {
+            inventory.addAll(startingItems);
+        }
         List<Integer> locationsChecked = new Vector<>();
         byte[] playthrough = new byte[100];
         int idx = 0;
@@ -955,7 +1170,9 @@ public class Main {
                     if (finalTreasures[i] == Items.TORCH) break;
                 }
             }
-            Collections.shuffle(newItems, rng);
+            if (rng != null) {
+                Collections.shuffle(newItems, rng);
+            }
             for (int item : newItems) {
                 if (strategic && (item == Items.AXE || item == Items.GOLD_GLOVES || item == Items.RED_OVERALLS || item == Items.EMPTY)) {
                     // do nothing; this item has already been preset as a strategic hint
@@ -1196,19 +1413,21 @@ public class Main {
         }
         else if (location.equals("N1R")) {
             return canAccess("N1", inventory)
-                    && (canGP(inventory) || inventory.contains(Items.GARLIC));
+                    && (canGP(inventory)
+                    || (difficulty > Difficulty.EASY && inventory.contains(Items.GARLIC)));
         }
         else if (location.equals("N1G")) {
             return canAccess("N1", inventory)
-                    && inventory.contains(Items.WIND)
-                    && inventory.contains(Items.WIND_BAG);
+                    && ((dayOnly && difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))
+                    || (inventory.contains(Items.WIND) && inventory.contains(Items.WIND_BAG)));
         }
         else if (location.equals("N1B")) {
             return canAccess("N1", inventory)
                     && inventory.contains(Items.POWDER)
                     && inventory.contains(Items.JUMP_BOOTS)
                     && canLift(inventory)
-                    && canGP(inventory);
+                    && canGP(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("N2S")) {
             return canAccess("N2", inventory);
@@ -1217,14 +1436,16 @@ public class Main {
             return canAccess("N2", inventory)
                     && (inventory.contains(Items.FLUTE)
                     || inventory.contains(Items.JUMP_BOOTS)
-                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory)));
+                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory))
+                    || (difficulty >= Difficulty.S_HARD));
         }
         else if (location.equals("N2G")) {
             return canAccess("N2", inventory)
                     && canGP(inventory)
                     && (inventory.contains(Items.FLUTE)
                     || inventory.contains(Items.JUMP_BOOTS)
-                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory)));
+                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory))
+                    || (difficulty >= Difficulty.S_HARD));
         }
         else if (location.equals("N2B")) {
             return canAccess("N2", inventory)
@@ -1239,7 +1460,8 @@ public class Main {
         }
         else if (location.equals("N3G")) {
             return canAccess("N3", inventory)
-                    && inventory.contains(Items.BEANSTALK_SEEDS);
+                    && (inventory.contains(Items.BEANSTALK_SEEDS)
+                    || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("N3B")) {
             return canAccess("N3", inventory)
@@ -1260,7 +1482,7 @@ public class Main {
         else if (location.equals("N4B")) {
             return canAccess("N4", inventory)
                     && inventory.contains(Items.PUMP)
-                    && canLift(inventory);
+                    && (difficulty >= Difficulty.HARD || canLift(inventory));
         }
         else if (location.equals("N5S")) {
             return canAccess("N5", inventory);
@@ -1272,7 +1494,8 @@ public class Main {
         }
         else if (location.equals("N5G")) {
             return canAccess("N5", inventory)
-                    && inventory.contains(Items.WIRE_WIZARD);
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.WIRE_WIZARD))
+                    && !dayOnly;
         }
         else if (location.equals("N5B")) {
             return canAccess("N5", inventory)
@@ -1284,14 +1507,15 @@ public class Main {
             return canAccess("N6", inventory)
                     && inventory.contains(Items.GARLIC)
                     && inventory.contains(Items.SPIKED_HELMET)
-                    && canSwim(inventory)
+                    && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))
+                        || canSwim(inventory))
                     && canGP(inventory);
         }
         else if (location.equals("N6R")) {
             return canAccess("N6", inventory)
                     && inventory.contains(Items.GARLIC)
                     && inventory.contains(Items.PURITY_STAFF)
-                    && canSwim(inventory)
+                    && (difficulty >= Difficulty.HARD || canSwim(inventory))
                     && canGP(inventory);
         }
         else if (location.equals("N6G")) {
@@ -1301,6 +1525,8 @@ public class Main {
         else if (location.equals("N6B")) {
             return canAccess("N6", inventory)
                     && canSuperGP(inventory)
+                    && (difficulty >= Difficulty.HARD
+                        || inventory.contains(Items.JUMP_BOOTS))
                     && inventory.contains(Items.NIGHT_VISION_GOGGLES);
         }
         else if (location.equals("W1S")) {
@@ -1317,7 +1543,7 @@ public class Main {
         else if (location.equals("W1B")) {
             return canAccess("W1", inventory)
                     && canSuperGP(inventory)
-                    && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS))
+                    && (canLift(inventory) || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)))
                     && (!dayOnly || inventory.contains(Items.GARLIC));
         }
         else if (location.equals("W2S")) {
@@ -1330,7 +1556,10 @@ public class Main {
         else if (location.equals("W2G")) {
             return canAccess("W2", inventory)
                     && inventory.contains(Items.WHEELS)
-                    && inventory.contains(Items.FLUTE);
+                    && (inventory.contains(Items.FLUTE)
+                        || (difficulty >= Difficulty.HARD
+                            && canLift(inventory)
+                            && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W2B")) {
             return canAccess("W2", inventory)
@@ -1358,11 +1587,11 @@ public class Main {
         }
         else if (location.equals("W4R")) {
             return canAccess("W4", inventory)
-                    && (inventory.contains(Items.SPIKED_HELMET) || (canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
+                    && (inventory.contains(Items.SPIKED_HELMET) || (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W4G")) {
             return canAccess("W4", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
                     && canSuperLift(inventory)
                     && canSuperGP(inventory);
         }
@@ -1375,17 +1604,20 @@ public class Main {
         }
         else if (location.equals("W5R")) {
             return canAccess("W5", inventory)
-                    && canSwim(inventory);
+                    && canSwim(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W5G")) {
             return canAccess("W5", inventory)
                     && canSwim(inventory)
-                    && canLift(inventory);
+                    && canLift(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W5B")) {
             return canAccess("W5", inventory)
                     && canSwim(inventory)
-                    && canLift(inventory);
+                    && canLift(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W6S")) {
             return canAccess("W6", inventory)
@@ -1397,13 +1629,12 @@ public class Main {
         }
         else if (location.equals("W6G")) {
             return canAccess("W6", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
                     && inventory.contains(Items.FIRE_EXTINGUISHER);
         }
         else if (location.equals("W6B")) {
             return canAccess("W6", inventory)
-                    && inventory.contains(Items.RUST_SPRAY)
-                    && canLift(inventory);
+                    && inventory.contains(Items.RUST_SPRAY);
         }
         else if (location.equals("S1S")) {
             return canAccess("S1", inventory)
@@ -1421,7 +1652,7 @@ public class Main {
         }
         else if (location.equals("S1B")) {
             return canAccess("S1", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS);
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("S2S")) {
             return canAccess("S2", inventory);
@@ -1438,8 +1669,8 @@ public class Main {
         else if (location.equals("S2B")) {
             return canAccess("S2", inventory)
                     && inventory.contains(Items.PURITY_STAFF)
-                    && inventory.contains(Items.GARLIC)
-                    && inventory.contains(Items.SPIKED_HELMET)
+                    && (difficulty >= Difficulty.S_HARD ||
+                    (inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET)))
                     && canSwim(inventory);
         }
         else if (location.equals("S3S")) {
@@ -1461,7 +1692,7 @@ public class Main {
                     && inventory.contains(Items.GOLD_EYE_R)
                     && inventory.contains(Items.SPIKED_HELMET)
                     && inventory.contains(Items.GARLIC)
-                    && inventory.contains(Items.JUMP_BOOTS)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
                     && canSuperLift(inventory);
         }
         else if (location.equals("S4S")) {
@@ -1489,7 +1720,7 @@ public class Main {
             return canAccess("S5", inventory)
                     && inventory.contains(Items.JUMP_BOOTS)
                     && canLift(inventory)
-                    && canSuperGP(inventory);
+                    && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
         }
         else if (location.equals("S5G")) {
             return canAccess("S5", inventory)
@@ -1508,7 +1739,7 @@ public class Main {
         else if (location.equals("S6R")) {
             return canAccess("S6", inventory)
                     && inventory.contains(Items.JUMP_BOOTS)
-                    && inventory.contains(Items.SPIKED_HELMET)
+                    && (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET))
                     && canLift(inventory);
         }
         else if (location.equals("S6G")) {
@@ -1559,7 +1790,7 @@ public class Main {
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
-                    && canGP(inventory);
+                    && (difficulty >= Difficulty.S_HARD || canGP(inventory));
         }
         else if (location.equals("E3R")) {
             return canAccess("E3", inventory)
@@ -1567,11 +1798,11 @@ public class Main {
         }
         else if (location.equals("E3G")) {
             return canAccess("E3", inventory)
-                    && canLift(inventory);
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
         }
         else if (location.equals("E3B")) {
             return canAccess("E3", inventory)
-                    && canLift(inventory);
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
         }
         else if (location.equals("E4S")) {
             return canAccess("E4", inventory);
@@ -1582,7 +1813,8 @@ public class Main {
         }
         else if (location.equals("E4G")) {
             return canAccess("E4", inventory)
-                    && (dayOnly
+                    && (difficulty >= Difficulty.S_HARD
+                    || dayOnly
                     || (inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E4B")) {
@@ -1610,7 +1842,7 @@ public class Main {
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)
-                    && canLift(inventory);
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
         }
         else if (location.equals("E6R")) {
             return canAccess("E6", inventory)
@@ -1669,7 +1901,7 @@ public class Main {
             return true;
         }
 
-        return canAccessKeyLocation(location.substring(0,2),keyLoc.getRegion(),keyLoc.getSubLocation(),daytime,inventory);
+        return canAccessKeyLocation(location.substring(0,2),keyLoc.getRegion(),keyLoc.getSubLocation(),daytime,idx,inventory);
     }
 
     /**
@@ -1679,10 +1911,11 @@ public class Main {
      * @param region    Which region the location exists in (identified by the number of its top-left sector
      * @param location  In a region, which sub-location points to the key
      * @param daytime   True if it's daytime
+     * @param keyColor  0-3, representing the color of the key Wario is looking for
      * @param inventory Wario's current inventory
      * @return True if the key location can be reached
      */
-    private static boolean canAccessKeyLocation(String level, int region, int location, boolean daytime, List<Integer> inventory) {
+    private static boolean canAccessKeyLocation(String level, int region, int location, boolean daytime, int keyColor, List<Integer> inventory) {
         if (level.equals("N1")) {
             if (region == 0x2) {
                 return inventory.contains(Items.POWDER) && inventory.contains(Items.JUMP_BOOTS);
@@ -1691,8 +1924,12 @@ public class Main {
                 if (location == 2) {
                     return true;
                 }
-                else {
+                else if (location == 0){
                     return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return difficulty >= Difficulty.S_HARD
+                            || inventory.contains(Items.JUMP_BOOTS);
                 }
             }
             else if (region == 0x6) {
@@ -1700,17 +1937,21 @@ public class Main {
             }
             else if (region == 0x7) {
                 if (location == 0) {
-                    return canSuperGP(inventory);
+                    return canSuperGP(inventory) ||
+                            (difficulty >= Difficulty.HARD &&
+                                    canLift(inventory) &&
+                                    inventory.contains(Items.JUMP_BOOTS));
                 }
                 else {
                     return true;
                 }
             }
             else if (region == 0xd) {
-                return canGP(inventory) || inventory.contains(Items.GARLIC);
+                return canGP(inventory) ||
+                        (difficulty > Difficulty.EASY && inventory.contains(Items.GARLIC));
             }
             else if (region == 0x14) {
-                return canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
+                return canLift(inventory) && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x17) {
                 return canSwim(inventory);
@@ -1721,6 +1962,9 @@ public class Main {
                 if (location == 2) {
                     return canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET);
                 }
+                else if (location == 0) {
+                    return !daytime || inventory.contains(Items.GARLIC);
+                }
                 else {
                     return true;
                 }
@@ -1730,10 +1974,15 @@ public class Main {
             }
             else if (region == 0x6) {
                 if (location == 0) {
-                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+                    return difficulty >= Difficulty.S_HARD
+                            || inventory.contains(Items.JUMP_BOOTS)
+                            || inventory.contains(Items.FLUTE);
                 }
                 else {
-                    return true;
+                    return difficulty > Difficulty.EASY
+                            || inventory.contains(Items.JUMP_BOOTS)
+                            || inventory.contains(Items.FLUTE)
+                            || canSuperGP(inventory);
                 }
             }
             else if (region == 0x8) {
@@ -1745,10 +1994,12 @@ public class Main {
             else if (region == 0x1c) {
                 if (location == 0) {
                     return canGP(inventory)
-                            && ((inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)) || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
+                            && ((!daytime && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)))
+                                || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
                 }
                 else {
-                    return (inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)) || (canSuperGP(inventory) && inventory.contains(Items.GARLIC));
+                    return ((!daytime && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)))
+                            || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
                 }
             }
         }
@@ -1758,17 +2009,25 @@ public class Main {
                     return inventory.contains(Items.BEANSTALK_SEEDS);
                 }
                 else if (location == 2) {
-                    return inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL);
+                    return difficulty >= Difficulty.HARD || (inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL));
                 }
                 else {
                     return true;
                 }
             }
             else if (region == 0x6) {
-                return inventory.contains(Items.BEANSTALK_SEEDS);
+                if (location == 0) {
+                    // this location doesn't spawn until the seeds are planted
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else {
+                    return inventory.contains(Items.BEANSTALK_SEEDS)
+                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                }
             }
             else if (region == 0x14) {
-                return inventory.contains(Items.BEANSTALK_SEEDS);
+                return inventory.contains(Items.BEANSTALK_SEEDS)
+                        || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x16) {
                 return canGP(inventory);
@@ -1783,7 +2042,8 @@ public class Main {
         else if (level.equals("N4")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return canSwim(inventory);
+                    return canSwim(inventory)
+                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else {
                     return canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS);
@@ -1796,16 +2056,17 @@ public class Main {
                 return inventory.contains(Items.PUMP) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x15) {
-                return inventory.contains(Items.GARLIC) && canLift(inventory) && canSwim(inventory);
+                return inventory.contains(Items.GARLIC) && canLift(inventory)
+                        && (canSwim(inventory) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x16) {
-                return inventory.contains(Items.GARLIC) && canSwim(inventory);
+                return inventory.contains(Items.GARLIC) && (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x17) {
                 return inventory.contains(Items.PUMP);
             }
             else if (region == 0x1d) {
-                return canSwim(inventory);
+                return canSwim(inventory) || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
         }
         else if (level.equals("N5")) {
@@ -1829,8 +2090,16 @@ public class Main {
                 return canSwim(inventory) && inventory.contains(Items.GARLIC) && inventory.contains(Items.GROWTH_SEED);
             }
             else if (region == 0x9) {
-                return canLift(inventory) && canSwim(inventory)
-                        && (canSuperSwim(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                if (location == 0) {
+                    return canLift(inventory) && canSwim(inventory)
+                            && (canSuperSwim(inventory)
+                            || inventory.contains(Items.SPIKED_HELMET)
+                            || difficulty >= Difficulty.HARD);
+                }
+                else {
+                    return canLift(inventory) && canSwim(inventory)
+                            && (canSuperSwim(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                }
             }
             else if (region == 0xa) {
                 return canLift(inventory) && canSwim(inventory);
@@ -1842,17 +2111,36 @@ public class Main {
         else if (level.equals("N6")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return inventory.contains(Items.GARLIC) && canGP(inventory) && canSwim(inventory);
+                    return inventory.contains(Items.GARLIC) && canGP(inventory)
+                            && (canSwim(inventory) || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)));
+                }
+                else if (location == 1) {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.GARLIC)
+                            && inventory.contains(Items.SPIKED_HELMET)
+                            && canGP(inventory)
+                            && (canSwim(inventory) || (difficulty > Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+                }
+                else if (location == 3) {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
+                            && (canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS));
                 }
                 else {
                     return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory) && canSwim(inventory);
                 }
             }
             else if (region == 0x5) {
-                return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory) && canSwim(inventory);
+                return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
+                        && (canSwim(inventory)
+                            || (difficulty >= Difficulty.HARD
+                                && inventory.contains(Items.JUMP_BOOTS)
+                                && keyColor == 0));
             }
             else if (region == 0x6) {
-                return canSuperGP(inventory) && inventory.contains(Items.NIGHT_VISION_GOGGLES) && inventory.contains(Items.JUMP_BOOTS);
+                return canSuperGP(inventory) && inventory.contains(Items.NIGHT_VISION_GOGGLES)
+                        && (difficulty >= Difficulty.HARD || inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x14) {
                 return canSuperGP(inventory);
@@ -1861,7 +2149,8 @@ public class Main {
                 return canSuperGP(inventory) && inventory.contains(Items.GARLIC);
             }
             else if (region == 0x1c) {
-                return inventory.contains(Items.GARLIC) && canGP(inventory) && canSwim(inventory) && inventory.contains(Items.PURITY_STAFF);
+                return inventory.contains(Items.GARLIC) && canGP(inventory) && inventory.contains(Items.PURITY_STAFF)
+                        && (canSwim(inventory) || (difficulty >= Difficulty.HARD && keyColor == 1));
             }
         }
         else if (level.equals("W1")) {
@@ -1879,7 +2168,10 @@ public class Main {
                 }
             }
             else if (region == 0x5) {
-                return canSuperGP(inventory) && (inventory.contains(Items.JUMP_BOOTS) || canLift(inventory)) && (!daytime || inventory.contains(Items.GARLIC));
+                return canSuperGP(inventory)
+                        && ((difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS))
+                            || canLift(inventory))
+                        && (!daytime || inventory.contains(Items.GARLIC));
             }
             else if (region == 0x6) {
                 if (location == 0) {
@@ -1895,7 +2187,7 @@ public class Main {
                     return false;
                 }
                 else if (location == 0) {
-                    return inventory.contains(Items.SPIKED_HELMET) && canLift(inventory);
+                    return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
                 }
                 else if (location == 2) {
                     return canGP(inventory);
@@ -1905,20 +2197,21 @@ public class Main {
                 }
             }
             else if (region == 0xa) {
-                return daytime || inventory.contains(Items.GARLIC);
+                return true;
             }
             else if (region == 0x14) {
-                return !daytime || inventory.contains(Items.GARLIC);
+                return true;
             }
             else if (region == 0x18) {
                 return canSuperGP(inventory)
-                        && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS))
+                        && (canLift(inventory)
+                            || (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS)))
                         && (!daytime || inventory.contains(Items.GARLIC));
             }
         }
         else if (level.equals("W2")) {
             if (region == 0x1) {
-                if (location == 1) {
+                if (location == 1 && difficulty > Difficulty.EASY) {
                     return true;
                 }
                 else {
@@ -1953,9 +2246,8 @@ public class Main {
         else if (level.equals("W3")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return inventory.contains(Items.BEANSTALK_SEEDS);
-                    // we'll add this back in for harder logic
-                    //        || (canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                    return inventory.contains(Items.BEANSTALK_SEEDS)
+                            || (difficulty >= Difficulty.HARD && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 1) {
                     return canGP(inventory);
@@ -1990,7 +2282,9 @@ public class Main {
                 return true;
             }
             else if (region == 0x5) {
-                return inventory.contains(Items.JUMP_BOOTS) && canSuperGP(inventory) && canSuperLift(inventory);
+                return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                        && canSuperGP(inventory)
+                        && canSuperLift(inventory);
             }
             else if (region == 0x7) {
                 return canLift(inventory) && inventory.contains(Items.PROPELLOR);
@@ -2000,7 +2294,9 @@ public class Main {
                     return true;
                 }
                 else {
-                    return inventory.contains(Items.SPIKED_HELMET) && canSuperGP(inventory);
+                    return canSuperGP(inventory)
+                            && (inventory.contains(Items.SPIKED_HELMET)
+                                || (difficulty >= Difficulty.HARD && canLift(inventory)));
                 }
             }
             else if (region == 0x16) {
@@ -2042,7 +2338,7 @@ public class Main {
                 }
             }
             else if (region == 0x4) {
-                return true;
+                return difficulty > Difficulty.EASY;
             }
             else if (region == 0xa) {
                 return canSuperSwim(inventory);
@@ -2062,7 +2358,7 @@ public class Main {
                 }
             }
             else if (region == 0x18) {
-                return inventory.contains(Items.JUMP_BOOTS);
+                return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
             }
             else if (region == 0x1B) {
                 return inventory.contains(Items.RED_CHEMICAL) && inventory.contains(Items.BLUE_CHEMICAL);
@@ -2071,14 +2367,29 @@ public class Main {
         else if (level.equals("W6")) {
             if (region == 0x1) {
                 if (location == 1) {
-                    return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+                    return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.RUST_SPRAY))
+                            && canGP(inventory);
                 }
                 else {
                     return true;
                 }
             }
             else if (region == 0x4) {
-                return inventory.contains(Items.FIRE_EXTINGUISHER) && inventory.contains(Items.JUMP_BOOTS);
+                if (!inventory.contains(Items.FIRE_EXTINGUISHER)) {
+                    return false;
+                }
+                if (difficulty < Difficulty.S_HARD) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    if (location == 2) {
+                        return inventory.contains(Items.JUMP_BOOTS);
+                    }
+                    else {
+                        return inventory.contains(Items.JUMP_BOOTS)
+                                || inventory.contains(Items.SPIKED_HELMET);
+                    }
+                }
             }
             else if (region == 0x8) {
                 if (location == 2) {
@@ -2117,14 +2428,14 @@ public class Main {
                 return inventory.contains(Items.BEANSTALK_SEEDS);
             }
             else if (region == 0x19) {
-                return inventory.contains(Items.JUMP_BOOTS);
+                return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x1a) {
                 if (location == 0) {
-                    return inventory.contains(Items.JUMP_BOOTS);
+                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                    return difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
                 }
             }
         }
@@ -2134,7 +2445,7 @@ public class Main {
                     return canLift(inventory);
                 }
                 else if (location == 2) {
-                    return canGP(inventory) && canSwim(inventory);
+                    return canGP(inventory);
                 }
                 else {
                     return true;
@@ -2146,12 +2457,18 @@ public class Main {
                 }
                 else {
                     return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
-                            && inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC);
+                            && (difficulty >= Difficulty.S_HARD ||
+                                (inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC)));
                 }
             }
             else if (region == 0xa) {
                 if (location == 0) {
-                    return canSwim(inventory) && canSuperGP(inventory);
+                    return canSwim(inventory)
+                            && canGP(inventory)
+                            && (canSuperGP(inventory)
+                                || (difficulty >= Difficulty.HARD
+                                    && canLift(inventory)
+                                    && inventory.contains(Items.JUMP_BOOTS)));
                 }
                 else {
                     return canSwim(inventory) && canGP(inventory)
@@ -2163,11 +2480,12 @@ public class Main {
             }
             else if (region == 0x19) {
                 if (location == 0) {
-                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
-                            && inventory.contains(Items.GARLIC) && canSuperGP(inventory);
+                    return canSwim(inventory)
+                            && inventory.contains(Items.GARLIC)
+                            && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
                 }
                 else {
-                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
+                    return canSwim(inventory)
                             && inventory.contains(Items.GARLIC);
                 }
             }
@@ -2183,10 +2501,13 @@ public class Main {
                     return inventory.contains(Items.WIRE_WIZARD);
                 }
                 else if (location == 1) {
-                    return inventory.contains(Items.WIRE_WIZARD) && inventory.contains(Items.JUMP_BOOTS);
+                    return inventory.contains(Items.WIRE_WIZARD)
+                            && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 2) {
-                    return inventory.contains(Items.WIRE_WIZARD) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.GARLIC);
+                    return inventory.contains(Items.WIRE_WIZARD)
+                            && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                            && inventory.contains(Items.GARLIC);
                 }
             }
             else if (region == 0x4 || region == 0x18 || region == 0x1a) {
@@ -2201,7 +2522,7 @@ public class Main {
                         && inventory.contains(Items.GOLD_EYE_R)
                         && inventory.contains(Items.SPIKED_HELMET)
                         && inventory.contains(Items.GARLIC)
-                        && inventory.contains(Items.JUMP_BOOTS)
+                        && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
                         && canSuperLift(inventory);
             }
         }
@@ -2243,10 +2564,11 @@ public class Main {
                 }
             }
             else if (region == 0xa) {
-                return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)
+                        && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
             }
             else if (region == 0xe) {
-                return inventory.contains(Items.SPIKED_HELMET);
+                return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
             }
             else if (region == 0x15) {
                 return inventory.contains(Items.JUMP_BOOTS);
@@ -2256,8 +2578,11 @@ public class Main {
             }
         }
         else if (level.equals("S6")) {
-            if (region == 0x1 || region == 0x3) {
+            if (region == 0x1) {
                 return true;
+            }
+            else if (region == 0x3) {
+                return difficulty > Difficulty.EASY || canSuperGP(inventory);
             }
             else if (!inventory.contains(Items.JUMP_BOOTS)) {
                 return false;
@@ -2275,7 +2600,7 @@ public class Main {
                     return true;
                 }
                 else {
-                    return inventory.contains(Items.SPIKED_HELMET) && canLift(inventory);
+                    return (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
                 }
             }
             else if (!inventory.contains(Items.SCISSORS)) {
@@ -2302,10 +2627,13 @@ public class Main {
             }
             else if (region == 0x7) {
                 if (location == 1) {
-                    return inventory.contains(Items.SPIKED_HELMET);
+                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
                 }
                 else {
-                    return inventory.contains(Items.DETONATOR);
+                    return inventory.contains(Items.DETONATOR)
+                            || (difficulty >= Difficulty.HARD
+                                && canLift(inventory)
+                                && inventory.contains(Items.JUMP_BOOTS));
                 }
             }
             else if (region == 0x14 || region == 0x16) {
@@ -2346,8 +2674,11 @@ public class Main {
                     return true;
                 }
                 else {
-                    return canLift(inventory);
+                    return canLift(inventory) || difficulty >= Difficulty.S_HARD;
                 }
+            }
+            else if (!canLift(inventory) && difficulty < Difficulty.S_HARD) {
+                return false;
             }
             else if (region == 0x4 || region == 0x9) {
                 return canSuperLift(inventory);
@@ -2361,21 +2692,26 @@ public class Main {
                 }
             }
             else if (region == 0x1a) {
-                if (!daytime && !canSuperLift(inventory)) {
+                if (!daytime && !canSuperLift(inventory) && difficulty < Difficulty.S_HARD) {
                     return false;
                 }
                 else if (location == 0) {
-                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                    return inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-                    return canLift(inventory);
+                    if (difficulty >= Difficulty.HARD) {
+                        return true;
+                    }
+                    else {
+                        return canSuperGP(inventory) || inventory.contains(Items.JUMP_BOOTS);
+                    }
                 }
             }
         }
         else if (level.equals("E4")) {
             if (region == 0x1) {
                 if (location == 1) {
-                    return daytime || inventory.contains(Items.JUMP_BOOTS);
+                    return daytime || inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
                 }
                 else {
                     return true;
@@ -2388,17 +2724,22 @@ public class Main {
                 return inventory.contains(Items.DETONATOR) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0xa) {
-                return inventory.contains(Items.GARLIC) && (inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS));
+                return inventory.contains(Items.GARLIC)
+                        && (inventory.contains(Items.SPIKED_HELMET)
+                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x14) {
                 return inventory.contains(Items.GARLIC) && canLift(inventory);
             }
             else if (region == 0x1B) {
                 if (location == 1) {
-                    return daytime || inventory.contains(Items.JUMP_BOOTS);
+                    return daytime || inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
                 }
                 else {
-                    return (daytime && canSuperLift(inventory)) || (!daytime && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
+                    return (daytime && canSuperLift(inventory))
+                            || (!daytime
+                                && (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD)
+                                && canLift(inventory));
                 }
             }
         }
@@ -2431,7 +2772,17 @@ public class Main {
                     return true;
                 }
                 else if (location == 1) {
-                    return canLift(inventory) && canSuperGP(inventory);
+                    if (difficulty <= Difficulty.NORMAL) {
+                        return canLift(inventory) && canSuperGP(inventory);
+                    }
+                    else if (difficulty <= Difficulty.HARD) {
+                        // require lift to get through walls but allow jellybob manip
+                        return canLift(inventory) &&
+                                (canGP(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                    }
+                    else {
+                        return canGP(inventory) || inventory.contains(Items.SPIKED_HELMET);
+                    }
                 }
                 else {
                     return canLift(inventory);
@@ -2452,7 +2803,8 @@ public class Main {
                 return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
             }
             else if (region == 0x14) {
-                return canLift(inventory);
+                return (difficulty >= Difficulty.S_HARD || canLift(inventory))
+                        && (keyColor == 0 || canSuperGP(inventory));
             }
             else if (region == 0x18) {
                 if (location == 0) {
@@ -2477,7 +2829,7 @@ public class Main {
                     return inventory.contains(Items.VALVE) && canLift(inventory);
                 }
                 else {
-                    return inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
+                    return difficulty > Difficulty.EASY && inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
                 }
             }
             else if (region == 0x7) {
@@ -2496,11 +2848,11 @@ public class Main {
                     return true;
                 }
                 else {
-                    return inventory.contains(Items.DEMON_BLOOD);
+                    return inventory.contains(Items.DEMON_BLOOD) || difficulty >= Difficulty.S_HARD;
                 }
             }
             else if (region == 0x18) {
-                return inventory.contains(Items.VALVE) && inventory.contains(Items.JUMP_BOOTS) && canSuperLift(inventory);
+                return inventory.contains(Items.VALVE) && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS)) && canSuperLift(inventory);
             }
         }
         return false;
