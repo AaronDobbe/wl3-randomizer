@@ -57,6 +57,7 @@ In addition to shuffling treasures, the randomizer makes a few changes to the ga
   * **Random object palettes:** If checked, the color palettes of all enemies and other in-level objects will be randomized.
   * **Random chest palettes:** If checked, the colors of the four chest/key pairs will be randomized. (This is only cosmetic - the keys and chests will functionally remain as they normally are.)
   * **Skip cutscenes:** If checked, all cutscenes that would play after collecting a treasure are removed from the game. In addition, you can skip the opening cutscene and the pre-final-battle cutscene with the B button. (Tutorials cannot be skipped just yet.) If you already know what all the treasures do, this can remove a lot of downtime from the gameplay.
+  * **Reveal secret paths:** Reveals all hidden passageways to the player. Highly recommended for your first few runs, even if you're familiar with the game. Many of these are rather unknown, and had applications only in Time Attack until now.
   * **Music shuffle:** Affects the game music.
       * **Off:** Music will not be affected.
       * **On:** The soundtrack will be shuffled, so that every track appears exactly as many times as it appeared in the original game.
