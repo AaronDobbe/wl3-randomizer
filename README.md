@@ -71,7 +71,7 @@ In addition to shuffling treasures, the randomizer makes a few changes to the ga
 Many emulators run WL3 somewhat poorly, causing odd graphical/sound errors or randomly causing Wario to be unable to climb ladders through screen transitions. Using [bgb](http://bgb.bircd.org/) is recommended if you're experiencing these issues.
 
 ## Tips
-While the randomizer will never require you to use any glitches or difficult tricks (such as throwing an enemy and bouncing off it in midair), there are a few unusual mechanics you will need to know.
+While the randomizer will never require you to use any glitches or difficult tricks (unless you're playing on Hard or above), there are a few unusual mechanics you will need to know.
 * If you collect an item that connects two quadrants of the world map, you can warp between them by pressing SELECT and selecting the NEXT MAP buttons. This may be required to get to levels you otherwise couldn't reach.
 * Just because a level's "dot" isn't available on the world map doesn't mean you can't enter that level. For example, collecting the torch early allows you to walk to E4 The Colossal Hole and enter the level even though the hole itself hasn't appeared on the map.
 * Small barrels can be nudged around by slowly walking into them while crouching, allowing you to reposition them and use them as platforms even if you don't have any gloves.
