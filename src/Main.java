@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.0";
+    private static final String VERSION = "v0.11.1";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -2187,7 +2187,7 @@ public class Main {
                     return false;
                 }
                 else if (location == 0) {
-                    return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
+                    return ((difficulty >= Difficulty.S_HARD && canGP(inventory)) || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
                 }
                 else if (location == 2) {
                     return canGP(inventory);
