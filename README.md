@@ -78,6 +78,7 @@ While the randomizer will never require you to use any glitches or difficult tri
 * The boots won't affect your jump height if you're afflicted with a status effect, including rolling. Conversely, this means that you don't need the boots to jump high if you're rolling, flattened, etc...
 * If you're new to the game or even just new to the randomizer, try setting hints to "Next item" and checking "Force axe start" for your first few games. That way, if you get stuck, you can visit the Temple for direction on where to go. Generating a seed also generates a spoiler log you can consult for help!
 * The ["Gotchas" doc](https://docs.google.com/document/d/1fYzp5uflcDFz836a_4Erpzw49fJjjvobjjyRKRJPWCQ/edit?usp=sharing) has a list of places that players commonly get stuck - if you're having trouble proceeding, consider giving it a read!
+* For help playing advanced difficulty settings, check out the [Difficulty Breakdown doc](https://docs.google.com/document/d/1odXyYfimSHGimKo4plN8OjAiqEUgok4s2XhP_S7G4yI/edit?usp=sharing) for a list of what's possible in each difficulty setting.
 
 ## Discord
 The Wario Land 3 Randomizer has its own channel on the [Wario Series Speedruns Discord](https://discord.gg/gfrMAVv)! Join the discussion, find opponents to race, or just vent about being forced to visit Above the Clouds without any powerups. 
