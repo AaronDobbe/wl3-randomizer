@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.1";
+    private static final String VERSION = "v0.11.2";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -2626,14 +2626,17 @@ public class Main {
                 return inventory.contains(Items.STONE_FOOT) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
             }
             else if (region == 0x7) {
-                if (location == 1) {
-                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
-                }
-                else {
+                if (location == 0) {
                     return inventory.contains(Items.DETONATOR)
                             || (difficulty >= Difficulty.HARD
                                 && canLift(inventory)
                                 && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 1) {
+                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return inventory.contains(Items.DETONATOR);
                 }
             }
             else if (region == 0x14 || region == 0x16) {
