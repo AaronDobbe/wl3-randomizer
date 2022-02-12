@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.2";
+    private static final String VERSION = "v0.11.3";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -2574,7 +2574,8 @@ public class Main {
                 return inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x18) {
-                return inventory.contains(Items.DETONATOR);
+                return inventory.contains(Items.DETONATOR)
+                        && (inventory.contains(Items.JUMP_BOOTS) || keyColor == 2);
             }
         }
         else if (level.equals("S6")) {
