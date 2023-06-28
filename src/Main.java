@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.3";
+    private static final String VERSION = "v0.11.4";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -146,6 +146,7 @@ public class Main {
                 return;
             }
         }
+
         Random rng = new Random(seed);
 
         openMode = options.containsKey("openStart") && !options.get("openStart").equals("false");
@@ -987,7 +988,13 @@ public class Main {
 
             for (Integer level : shuffledMap) {
 //                if (firstLevels.contains(level)) {
-                if (canAccess(locationNames[level*4], startingItems, null, false, true) ||
+                if (axeStart) {
+                    if (canAccess(locationNames[level*4], startingItems, null, false, true)) {
+                        firstLevel = level;
+                        break;
+                    }
+                }
+                else if (canAccess(locationNames[level*4], startingItems, null, false, true) ||
                         canAccess(locationNames[level*4+1], startingItems, null, false, true) ||
                         canAccess(locationNames[level*4+2], startingItems, null, false, true) ||
                         canAccess(locationNames[level*4+3], startingItems, null, false, true)) {
@@ -1028,7 +1035,7 @@ public class Main {
         int idx = 0;
         for (int i = 1; i <= 64; i++) {
             idx >>>= 1;
-            if (seed % 2 == 1) {
+            if ((seed & 1) == 1) {
                 idx += 32;
             }
             seed >>>= 1;
@@ -1061,7 +1068,7 @@ public class Main {
         for (int i = 0; i < codedChars.length; i++) {
             seed <<= 6;
             int val = chars.indexOf(codedChars[i]);
-            seed += val;
+            seed |= val;
         }
         return seed;
     }
