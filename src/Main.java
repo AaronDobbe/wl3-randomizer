@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.4";
+    private static final String VERSION = "v0.11.5";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -2212,7 +2212,7 @@ public class Main {
             else if (region == 0x18) {
                 return canSuperGP(inventory)
                         && (canLift(inventory)
-                            || (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS)))
+                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)))
                         && (!daytime || inventory.contains(Items.GARLIC));
             }
         }
