@@ -1511,10 +1511,14 @@ public class Main {
                     && canSwim(inventory);
         }
         else if (location.equals("N6S")) {
+			/*
+			* New logic addition for this chest for MINOR GLITCHES. 
+			* You can skip the need for Boots using a Walljump when compared to HARD.
+			*/
             return canAccess("N6", inventory)
                     && inventory.contains(Items.GARLIC)
                     && inventory.contains(Items.SPIKED_HELMET)
-                    && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))
+                    && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD) 
                         || canSwim(inventory))
                     && canGP(inventory);
         }
@@ -1573,8 +1577,20 @@ public class Main {
                     && inventory.contains(Items.STONE_FOOT);
         }
         else if (location.equals("W3S")) {
+		/*
+		* Additional HARD Logic added for this check.
+		* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
+		* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
+		* then do a midair enemy bounce using the Paragoom.
+		* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
+		* Go across the 2nd set of pipes, then do the same midair enemy bounce using the Paragoom.
+		*/
             return canAccess("W3", inventory)
-                    && canGP(inventory);
+                    && canGP(inventory)
+						|| (difficulty >= Difficulty.HARD
+							&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
+                            && canLift(inventory)
+                            && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W3R")) {
             return canAccess("W3", inventory)
@@ -1593,8 +1609,16 @@ public class Main {
             return canAccess("W4", inventory);
         }
         else if (location.equals("W4R")) {
+		/*
+		* Additional MINOR GLITCHES Logic added for this chest.
+		* You can access this chest without a Glove or Helmet by using just Boots.
+		* Jump off 1 Firebot to get up the Ledge that leads to the Zombie Room - Below Third Platform check,
+		* then do a High Walljump to reach the Zombies section.
+		*/
             return canAccess("W4", inventory)
-                    && (inventory.contains(Items.SPIKED_HELMET) || (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
+                    && (inventory.contains(Items.SPIKED_HELMET) 
+					|| (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+					|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W4G")) {
             return canAccess("W4", inventory)
@@ -1771,9 +1795,10 @@ public class Main {
                     && (canGP(inventory) || (canSuperSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E1G")) {
+		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
             return canAccess("E1", inventory)
-                    && inventory.contains(Items.JUMP_BOOTS)
-                    && inventory.contains(Items.STONE_FOOT);
+                    && inventory.contains(Items.STONE_FOOT)
+					&& (inventory.contains(Items.JUMP_BOOTS) || Difficulty = Difficulty.S_HARD);
         }
         else if (location.equals("E1B")) {
             return canAccess("E1", inventory)
@@ -2139,11 +2164,18 @@ public class Main {
                 }
             }
             else if (region == 0x5) {
+			/*
+			* New addition for this check for MINOR GLITCHES. 
+			* You can skip the need for Boots using a Walljump when compared to HARD.
+			* This is for the Boss Room - Above Silver Chest check.
+			*/
                 return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
-                        && (canSwim(inventory)
+                        && canSwim(inventory)
                             || (difficulty >= Difficulty.HARD
-                                && inventory.contains(Items.JUMP_BOOTS)
-                                && keyColor == 0));
+                                && inventory.contains(Items.JUMP_BOOTS) 
+								&& keyColor == 0);
+							|| (difficulty >= Difficulty.S_HARD
+                                && keyColor == 0);
             }
             else if (region == 0x6) {
                 return canSuperGP(inventory) && inventory.contains(Items.NIGHT_VISION_GOGGLES)
@@ -2257,7 +2289,21 @@ public class Main {
                             || (difficulty >= Difficulty.HARD && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 1) {
-                    return canGP(inventory);
+					/*
+					* Additional HARD Logic added for this check, which is Main Area - Top Center.
+					* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
+					* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
+					* then do a midair enemy bounce using the Paragoom.
+					* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
+					* Then go across the 2nd set of pipes and do the same midair enemy bounce using the Paragoom.
+					* The latter option can only be in logic if this check is specifically the Grey or Red Keys.
+					* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
+					*/
+                    return canGP(inventory)
+						|| (difficulty >= Difficulty.HARD
+							&& (canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS) && (keyColor == 0 || keyColor == 1)))					keyColor == 1)
+                            && canLift(inventory)
+                            && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 2) {
                     return canSwim(inventory);
@@ -2289,6 +2335,21 @@ public class Main {
                 return true;
             }
             else if (region == 0x5) {
+				if (location == 1) {
+					return ((difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                        && canSuperGP(inventory)
+                        && canSuperLift(inventory)
+						/*
+						* Alternative execution for MINOR GLITCHES, which can be done without Red Overalls.
+						* Line up with the proper pixel, then do a Reverse High Walljump
+						* to break the blocks that lead to this check, which is Switch Puzzle Main - Lower Left.
+						*/
+							|| (difficulty >= Difficulty.S_HARD 
+								&& inventory.contains(Items.JUMP_BOOTS) 
+								&& inventory.contains(Items.SPIKED_HELMET)
+								&& canSuperLift(inventory)));
+				}
+				
                 return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
                         && canSuperGP(inventory)
                         && canSuperLift(inventory);
@@ -2301,9 +2362,17 @@ public class Main {
                     return true;
                 }
                 else {
+					/*
+					* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
+					* I also added a MINOR GLITCHES alternative for this check. 
+					* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
+					* Then use a high walljump to escape out of the pit. 
+					* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
+					*/
                     return canSuperGP(inventory)
-                            && (inventory.contains(Items.SPIKED_HELMET)
-                                || (difficulty >= Difficulty.HARD && canLift(inventory)));
+                        && (inventory.contains(Items.SPIKED_HELMET)
+                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+							|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
             else if (region == 0x16) {
@@ -2442,7 +2511,15 @@ public class Main {
                     return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-                    return difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+				/*
+				* Additional HARD Logic added for this check.
+				* Bonk off enemies just as they are becoming unstunned near a block.
+				* If done right, this will cause the enemy to gain 1 block of height.
+				* Do this twice with the rightmost Spearhead so that it reaches the area above the Blue Chest. 
+				* From there, High Jump off of the Spearhead to reach the area as normal.
+				*/
+                    return (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)
+						|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
         }
@@ -2487,13 +2564,19 @@ public class Main {
             }
             else if (region == 0x19) {
                 if (location == 0) {
+				// This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
                     return canSwim(inventory)
-                            && inventory.contains(Items.GARLIC)
-                            && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
+                        && inventory.contains(Items.GARLIC)
+                        && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) || canSuperGP(inventory));
                 }
                 else {
+				/*
+				* Added MINOR GLITCHES logic for this check, which is Spiders Side Room - Lower Right.
+				* Break the bottom next to this check, then do a Reverse High Walljump.
+				*/
                     return canSwim(inventory)
-                            && inventory.contains(Items.GARLIC);
+                        && (inventory.contains(Items.GARLIC)
+						|| (difficulty >= Difficulty.S_HARD && inventory.constructor(Items.JUMP_BOOTS));
                 }
             }
         }
@@ -2578,7 +2661,9 @@ public class Main {
                 return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
             }
             else if (region == 0x15) {
-                return inventory.contains(Items.JUMP_BOOTS);
+			// Added MINOR GLITCHES logic to reach the Water Current Room. Do a walljump to reach this region.
+                return (inventory.contains(Items.JUMP_BOOTS)
+				|| difficulty >= Difficulty.S_HARD);
             }
             else if (region == 0x18) {
                 return inventory.contains(Items.DETONATOR)
@@ -2840,7 +2925,15 @@ public class Main {
                     return inventory.contains(Items.VALVE) && canLift(inventory);
                 }
                 else {
-                    return difficulty > Difficulty.EASY && inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
+				/* 
+				* Added MINOR GLITCHES logic for the Vampire Area - Center Left check.
+				* This check can be obtained without a Glove, using just Boots.
+				* Perform a High Walljump to reach the Spearhead located in the upper right corner.
+				* Stun it, then walk into it towards the left and knock it down the ledges necessary.
+				* Once it's off the ledge that the door leading to the Hammerbot room is on, do the jumps across like normal to reach the check.
+				*/
+                    return (difficulty > Difficulty.EASY && inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)
+					|| (difficulty >= Difficulty.S_HARD && inventory.contains(ITEMS.VALVE) && inventory.contains(Items.JUMP_BOOTS));
                 }
             }
             else if (region == 0x7) {
