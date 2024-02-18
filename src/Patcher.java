@@ -1,1212 +1,3242 @@
-import com.google.gson.*;
-
-import java.awt.*;
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
-import java.util.List;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import keyshuffle.KeyLocation;
 import keyshuffle.Level;
 
-public class Patcher {
+import javax.swing.*;
+import java.io.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
 
-    /**
-     * Create a patched, randomized ROM and write it to disk. Any NULL options will not be shuffled.
-     *
-     * @param vanillaPathStr  path to a vanilla ROM
-     * @param treasures       ordered list of randomized treasures
-     * @param seed            encoded String representation of the seed used to generate treasures
-     * @param playthrough     byte array representing order that treasures should be collected in, or null if vanilla
-     * @param music           ordered array of music ids
-     * @param worldMap        ordered array of level ids
-     * @param levelColors     list of ints from 0 to 100000 representing an amount to rotate level color hues by
-     * @param titleBGColors   list of ints from 0 to 100000 representing an amount to rotate title screen color hues by
-     * @param otherBGColors   list of ints from 0 to 100000 representing an amount to rotate misc screen color hues by
-     * @param objColors       list of ints from 0 to 100000 representing an amount to rotate enemy/object color hues by
-     * @param chestColors     list of ints from 0 to 100000 representing four hues, four saturations, and four values to apply to the four key/chest pairs (highlights and outlines will be auto-generated)
-     * @param keyLocations    list of levels and their key placements
-     * @param golfOrder       ordered array of golf course ids
-     * @param cutsceneSkip    true if the cutscene skip patch should be applied
-     * @param version         String representing current app version
-     * @throws IOException    if something goes wrong reading from or writing to a ROM
-     */
-    public static void patch(String vanillaPathStr,
-                             int[] treasures,
-                             String seed,
-                             byte[] playthrough,
-                             Integer[] music,
-                             Integer[] worldMap,
-                             int[] levelColors,
-                             int[] titleBGColors,
-                             int[] otherBGColors,
-                             int[] objColors,
-                             int[] chestColors,
-                             Level[] keyLocations,
-                             Integer[] golfOrder,
-                             boolean cutsceneSkip,
-                             boolean revealSecrets,
-                             List<Integer> startingPowers,
-                             String version) throws IOException {
-        Path vanillaPath = new File(vanillaPathStr).toPath();
-        byte[] romBytes = Files.readAllBytes(vanillaPath);
-        romBytes = applyPatch(romBytes, "baseDiff.json");
-        romBytes = treasuresPatch(romBytes, treasures, worldMap);
-        if (playthrough != null) {
-            romBytes = hintPatch(romBytes, playthrough);
-        }
-        if (music != null) {
-            romBytes = musicPatch(romBytes, music);
-        }
-        if (keyLocations != null) {
-            romBytes = keyShufflePatch(romBytes, keyLocations);
-        }
-        if (worldMap != null) {
-            romBytes = mapPatch(romBytes, worldMap, keyLocations != null);
-        }
-        if (golfOrder != null) {
-            romBytes = shuffleGolf(romBytes, golfOrder);
-        }
-        if (levelColors != null) {
-            romBytes = shuffleBGPalettes(romBytes,levelColors);
-        }
-        if (titleBGColors != null) {
-            romBytes = shuffleTitleBGPalettes(romBytes,titleBGColors);
-        }
-        if (otherBGColors != null) {
-            romBytes = shuffleOtherBGPalettes(romBytes,otherBGColors);
-        }
-        if (objColors != null) {
-            romBytes = shuffleObjPalettes(romBytes, objColors);
-        }
-        if (chestColors != null) {
-            romBytes = shuffleChestPalettes(romBytes, chestColors);
-        }
-        if (cutsceneSkip) {
-            romBytes = applyPatch(romBytes,"cutSkipPatch.json");
-        }
-        if (startingPowers != null && startingPowers.size() > 0) {
-            romBytes = addStartingPowers(romBytes, startingPowers);
-        }
-        if (revealSecrets) {
-            romBytes = revealSecrets(romBytes);
-        }
-        savePatchedFile(romBytes, seed, version);
+public class Main {
+    private static String[] locationNames;
+    private static int[] finalTreasures;
+
+    private static Integer[] worldMap;
+
+    private static Level[] allKeyLocations;
+    private static Level[] finalKeyLocations;
+    private static boolean keyShuffle;
+    private static boolean enableNewLogic;
+    private static boolean openMode;
+    private static boolean utilityStart;
+    private static boolean itemStart;
+    private static boolean mapShuffle;
+    private static boolean powerfulStart;
+    private static boolean fullPowerStart;
+    private static boolean axeStart;
+    private static int difficulty;
+    private static List<Integer> startingItems;
+    private static final int NUM_POWERS = 3;
+
+    private static int fails = 0;
+
+    private static String vanillaFileLocation;
+
+    private static GUI gui;
+
+    private static final String VERSION = "v0.11.5";
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                Main.createGUI();
+            }
+        });
     }
 
     /**
-     * Given a byte array representing a ROM, apply the given patch file.
+     * Generate a randomized game.
      *
-     * @return byte array representing a patched ROM
-     * @throws IOException
+     * @param userSeed  Seed provided by the user. null if no seed was specified.
      */
-    private static byte[] applyPatch(byte[] romBytes, String patchName) throws IOException {
+    public static void generateGame(String userSeed, Map<String,String> options) {
+        fails = 0;
+        // separate junk items from non-junk items
+        Integer[] junk = {Items.ROCKETSHIP, Items.POKEMON_PIKACHU, Items.FIGHTER, Items.TELEPHONE, Items.CROWN,
+                      Items.TIME_BUTTON, Items.RUBY, Items.EMERALD, Items.SAPPHIRE, Items.CLUBS, Items.SPADES,
+                      Items.HEARTS, Items.DIAMONDS, Items.CLAY_FIGURE, Items.SABRE, Items.GLASS, Items.TEAPOT,
+                      Items.MAGNIFYING_GLASS, Items.UFO, Items.CAR, Items.TRAIN, Items.RED_CRAYON, Items.BROWN_CRAYON,
+                      Items.YELLOW_CRAYON, Items.GREEN_CRAYON, Items.CYAN_CRAYON, Items.BLUE_CRAYON, Items.PINK_CRAYON};
+        List<Integer> junkList = Arrays.asList(junk);
+        List<Integer> inventory = new Vector<>();
+        for (int i = 1; i <= 0x64; i++) {
+            if (!junkList.contains(i)) {
+                inventory.add(i);
+            }
+        }
+        // init locations
+        List<Integer> treasures = new ArrayList<>(100);
+        List<Integer> locations = new ArrayList<>(100);
+        locationNames = new String[100];
+        for (int i = 0; i < 100; i++) {
+            locationNames[i] = "" + "NWSEE".charAt(i/24) + ((i >= 96) ? '7' : Character.forDigit(((i % 24)/4) + 1, 10)) + "SRGB".charAt(i%4);
+            locations.add(i);
+            treasures.add(null);
+        }
+        finalTreasures = new int[100];
+        finalKeyLocations = new Level[25];
+        keyShuffle = options.containsKey("keyShuffle") && "true".equals(options.get("keyShuffle"));
+
+        try {
+            // load list of all potential key locations
+            allKeyLocations = new Level[25];
             Gson gson = new GsonBuilder().create();
-            ClassLoader classLoader = Patcher.class.getClassLoader();
-            InputStream baseDiff = Patcher.class.getResourceAsStream(patchName);
+            InputStream baseDiff = Main.class.getResourceAsStream("/keyshuffle/keyLocations.json");
             BufferedReader br = new BufferedReader(new InputStreamReader(baseDiff));
-            String diffStr = br.readLine();
+            String keyLocStr = br.readLine();
             br.close();
-            JsonElement jelem = gson.fromJson(diffStr, JsonElement.class);
-            JsonObject jobj = jelem.getAsJsonObject();
-            for (Map.Entry<String, JsonElement> entry : jobj.entrySet()) {
-                int index = Integer.parseInt(entry.getKey());
-                JsonArray array = entry.getValue().getAsJsonArray();
-                for (int i = 0; i < array.size(); i++) {
-                    romBytes[index] = array.get(i).getAsByte();
-                    index++;
+            allKeyLocations = gson.fromJson(keyLocStr,allKeyLocations.getClass());
+        } catch (IOException e) {
+            gui.log(e.getMessage());
+        }
+        List<Level> levelList = new ArrayList<>();
+        if (keyShuffle) {
+            // init list of empty levels
+            for (int i = 0; i < 25; i++) {
+                levelList.add(new Level(i, locationNames[i * 4].substring(0, 2)));
+            }
+        }
+        else {
+            try {
+                // init list of levels with vanilla key placements
+                Gson gson = new GsonBuilder().create();
+                InputStream baseDiff = Main.class.getResourceAsStream("keyshuffle/keyLocations_vanilla.json");
+                BufferedReader br = new BufferedReader(new InputStreamReader(baseDiff));
+
+                String keyLocStr = br.readLine();
+                br.close();
+                Level[] levelArray = new Level[25];
+                levelArray = gson.fromJson(keyLocStr,levelArray.getClass());
+                levelList = Arrays.asList(levelArray);
+            } catch (IOException e) {
+                gui.log(e.getMessage());
+            }
+        }
+
+        List<Integer> mapList = new ArrayList<Integer>();
+        for (int i = 0; i < 25; i++) {
+            mapList.add(i);
+        }
+        mapShuffle = options.containsKey("mapShuffle") && "true".equals(options.get("mapShuffle"));
+
+        // keep unshuffled lists in case we need re-randomization
+        List<Integer> pureInventory = new ArrayList<>(inventory);
+        List<Integer> pureLocations = new ArrayList<>(locations);
+        List<Integer> pureMapList = new ArrayList<>(mapList);
+        List<Level> pureLevelList = cloneLevelList(levelList);
+
+        // Set up the random object
+        Random seedRNG = new Random();
+        long seed;
+        if (userSeed == null || userSeed.length() == 0) {
+            seed = seedRNG.nextLong();
+        }
+        else if (userSeed.length() != 11) {
+            gui.log("Invalid seed. Please double-check the seed and try again.");
+            return;
+        }
+        else {
+            try {
+                seed = decodeSeed(userSeed);
+            } catch (Exception e) {
+                gui.log("Invalid seed. Please double-check the seed and try again.");
+                fails = 0;
+                return;
+            }
+        }
+
+        Random rng = new Random(seed);
+
+        openMode = options.containsKey("openStart") && !options.get("openStart").equals("false");
+        utilityStart = options.containsKey("utilityStart") && !options.get("utilityStart").equals("false");
+        axeStart = !openMode && options.containsKey("axeStart") && options.get("axeStart").equals("true");
+        powerfulStart = options.containsKey("powerStart") && !options.get("powerStart").equals("false");
+        fullPowerStart = options.containsKey("powerStart") && options.get("powerStart").equals("full");
+        enableNewLogic = true;
+        itemStart = openMode || powerfulStart || utilityStart;
+
+        switch (options.get("difficulty")) {
+            case "easy":
+                difficulty = Difficulty.EASY;
+                break;
+            case "normal":
+                difficulty = Difficulty.NORMAL;
+                break;
+            case "hard":
+                difficulty = Difficulty.HARD;
+                break;
+            case "minorglitches":
+                difficulty = Difficulty.S_HARD;
+                break;
+			case "merciless": //added MERCILESS difficulty
+				difficulty = Difficulty.MERCILESS;
+				break;
+        }
+
+        // randomize lists of non-junk items and locations
+        List<Integer> leftInventory = new Vector<>();
+        List<List<Integer>> keyIndexes = new ArrayList<>();
+        prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
+
+        int attempts = 0;
+        // attempt to place treasures
+        boolean bossBoxes = options.containsKey("restrictedMusicBoxes") && options.get("restrictedMusicBoxes").equals("true");
+        while (((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, levelList, keyIndexes, 5))
+                || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures, levelList, keyIndexes)))
+                || !testDifficulty(itemStart)) {
+            // could not finish in reasonable time, or seed difficulty was incorrect
+            // if no user seed provided, generate a new seed and re-randomize using that
+            if (userSeed != null && userSeed.length() > 0) {
+                gui.log("Invalid seed. Please double-check the seed and try again.");
+                return;
+            }
+
+            attempts++;
+            finalTreasures = new int[100];
+            finalKeyLocations = new Level[25];
+            seed = seedRNG.nextLong();
+            rng = new Random(seed);
+            inventory = new ArrayList<>(pureInventory);
+            leftInventory = new Vector<>();
+            locations = new ArrayList<>(pureLocations);
+            mapList = new ArrayList<>(pureMapList);
+            levelList = cloneLevelList(pureLevelList);
+            keyIndexes = new ArrayList<>();
+            fails = 0;
+
+            prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
+        }
+
+        // items have been placed, now shuffle list of junk and use it to fill in the remaining locations
+        boolean excludeJunk = options.containsKey("excludeJunk") && "true".equals(options.get("excludeJunk"));
+
+        List<Integer> miscItems = new ArrayList<>(junkList);
+        for (Integer startingItem : startingItems) {
+            if (!miscItems.contains(startingItem)) {
+                miscItems.add(Items.EMPTY);
+            }
+        }
+
+        Collections.shuffle(miscItems,rng);
+
+        int nextLocation = 0;
+        for (Integer junkItem : miscItems) {
+            if (excludeJunk && junkItem != Items.TIME_BUTTON && junkItem != Items.MAGNIFYING_GLASS) {
+                // if junk items are excluded, replace with empty boxes
+                junkItem = Items.EMPTY;
+            }
+            if (utilityStart && (junkItem == Items.TIME_BUTTON || junkItem == Items.MAGNIFYING_GLASS)) {
+                junkItem = Items.EMPTY;
+            }
+
+            for (int i = nextLocation; i < 100; i++) {
+                if (finalTreasures[i] == 0) {
+                    finalTreasures[i] = junkItem;
+                    nextLocation = i + 1;
+                    break;
                 }
             }
-            return romBytes;
-    }
+        }
 
-    /**
-     * Modify the treasure table in a given ROM.
-     *
-     * @param romBytes  byte array representing a WL3 ROM
-     * @param treasures Randomized list of treasures
-     * @return byte array representing the new ROM
-     */
-    private static byte[] treasuresPatch(byte[] romBytes, int[] treasures, Integer[] worldMap) {
-        int idx = 0x198f;
-        for (int i = 0; i < treasures.length; i++) {
-            int treasureIdx = i;
+        // build playthrough to set up hints if requested
+        byte[] playthrough = null;
+        if (options.containsKey("hints") && !options.get("hints").equals("unhelpful")) {
+            boolean strategicHints = options.get("hints").equals("strategic");
+            playthrough = buildPlaythrough(rng, strategicHints, itemStart);
+        }
 
-            if (worldMap != null) {
-                // if we're using map shuffle, treasure won't be in their proper spots in the treasure table
-                // so we need to scramble the table to match the scrambled map
-                treasureIdx = (worldMap[i/4] * 4) + (i%4);
+        // randomize music if requested
+        Integer[] music = null;
+        if (options.containsKey("musicShuffle")) {
+            if (options.get("musicShuffle").equals("on")) {
+                music = shuffleMusic(false, rng);
+            }
+            else if (options.get("musicShuffle").equals("chaos")) {
+                music = shuffleMusic(true, rng);
+            }
+        }
+
+        // randomize level palettes if requested
+        // 2336 numbers
+        int[] paletteSwitches = null;
+        int[] titleSwitches = null;
+        int[] otherSwitches = null;
+        if (options.containsKey("levelColors") && "true".equals(options.get("levelColors"))) {
+            // There are some sets of palettes that we want to ensure get the same transformation.
+            // This is usually because of rooms that cycle through palettes (e.g. N1 underground),
+            // or because of levels that change their palettes in response to Wario's inventory (e.g. S4)
+            int[][] associations = {{0x2,0x3,0x73,0x74},
+                                    {0x20,0x4a},
+                                    {0x23,0x70},
+                                    {0x24,0x58,0x59},
+                                    {0x2b,0x6c},
+                                    {0x2f,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c},
+                                    {0x31,0x55,0x56,0x57,0x5e,0x5f,0x60},
+                                    {0x44,0x7d,0x7e,0x7f,0x80,0x81,0x82,0x83},
+                                    {0x45,0x84,0x85,0x86,0x87,0x88,0x89,0x8a},
+                                    {0x46,0x8b,0x8c,0x8d,0x8e,0x8f,0x90,0x91},
+                                    {0x4b,0x4c},
+                                    {0x5a,0x5b,0x5c},
+                                    {0x65,0x66,0x67},
+                                    {0x68,0x69,0x6a},
+                                    {0x6d,0x6e},
+                                    {0x71,0x72}};
+            int[][] assocSwitches = new int[associations.length][8];
+            for (int i = 0; i < assocSwitches.length; i++) {
+                for (int j = 0; j < assocSwitches[i].length; j++) {
+                    assocSwitches[i][j] = -1;
+                }
             }
 
-            romBytes[idx+i] = (byte)treasures[treasureIdx];
+            paletteSwitches = new int[1168];
+            for (int i = 0; i < paletteSwitches.length; i++) {
+                int assocIdx = -1;
+                for (int x = 0; x < associations.length; x++) {
+                    for (int y = 0; y < associations[x].length; y++) {
+                        if (associations[x][y] == i/8) {
+                            assocIdx = x;
+                        }
+                    }
+                }
+                if (assocIdx > -1 && assocSwitches[assocIdx][i%8] != -1) {
+                    paletteSwitches[i] = assocSwitches[assocIdx][i%8];
+                    continue;
+                }
+                paletteSwitches[i] = rng.nextInt(100000);
+                if (assocIdx > -1) {
+                    assocSwitches[assocIdx][i%8] = paletteSwitches[i];
+                }
+            }
+
+            titleSwitches = new int[4];
+            for (int i = 0; i < titleSwitches.length; i++) {
+                titleSwitches[i] = rng.nextInt(100000);
+            }
+
+            otherSwitches = new int[6];
+            for (int i = 0; i < otherSwitches.length; i++) {
+                otherSwitches[i] = rng.nextInt(100000);
+            }
         }
-        return romBytes;
+
+        int[] objColors = null;
+        // randomize object palettes if requested
+        if (options.containsKey("enemyColors") && "true".equals(options.get("enemyColors"))) {
+            objColors = new int[480];
+            for (int i = 0; i < objColors.length; i++) {
+                objColors[i] = rng.nextInt(100000);
+            }
+        }
+
+        // randomize key/chest palettes
+        int[] chestColors = null;
+        if (options.containsKey("chestColors") && "true".equals(options.get("chestColors"))) {
+            // pick four each of hue, sat, val values that are distinct
+            chestColors = new int[12];
+            for (int set = 0; set < 3; set++) {
+                for (int val = 0; val < 4; val++) {
+                    int candidate = 0;
+                    boolean ok = false;
+                    while (!ok) {
+                        if (set == 1) {
+                            candidate = rng.nextInt(70000) + 30000;
+                        }
+                        else if (set == 2) {
+                            candidate = rng.nextInt(50000) + 50000;
+                        }
+                        else {
+                            candidate = rng.nextInt(100000);
+                        }
+                        ok = true;
+                        for (int i = 0; i < val; i++) {
+                            if (Math.abs(candidate - chestColors[set*4 + i]) < (set == 0 ? 10000 : 8750)) {
+                                ok = false;
+                                break;
+                            }
+                            else if (set == 0 && (Math.abs(((candidate+50000)%100000) - ((chestColors[set*4 + i]+50000)%100000)) < 10000)) {
+                                ok = false;
+                                break;
+                            }
+                        }
+                    }
+                    chestColors[set*4 + val] = candidate;
+                }
+            }
+        }
+
+        // randomize golf if requested
+        Integer[] golfOrder = null;
+        if (options.containsKey("golfShuffle") && "true".equals(options.get("golfShuffle"))) {
+            golfOrder = shuffleGolf(rng);
+        }
+
+        boolean cutsceneSkip = options.containsKey("cutsceneSkip") && "true".equals(options.get("cutsceneSkip"));
+        boolean revealSecrets = options.containsKey("revealSecrets") && "true".equals(options.get("revealSecrets"));
+
+        // patch vanilla ROM file and create randomized ROM
+        try {
+            Patcher.patch(vanillaFileLocation,
+                    finalTreasures,
+                    encodeSeed(seed),
+                    playthrough,
+                    music,
+                    mapShuffle ? worldMap : null,
+                    paletteSwitches,
+                    titleSwitches,
+                    otherSwitches,
+                    objColors,
+                    chestColors,
+                    keyShuffle ? finalKeyLocations : null,
+                    golfOrder,
+                    cutsceneSkip,
+                    revealSecrets,
+                    startingItems,
+                    VERSION);
+        } catch (IOException e) {
+            gui.log("Error occurred while generating randomized game: " + e.getMessage());
+            return;
+        }
+
+        gui.log("Generated randomized game with seed " + encodeSeed(seed));
+        gui.log("Randomized ROM has been saved as WL3-randomizer-" + VERSION + "-" + encodeSeed(seed) + ".gbc");
+
+        try {
+            SpoilerLog.writeSpoiler(startingItems, finalTreasures, keyShuffle ? finalKeyLocations : null,
+                    mapShuffle ? worldMap : null, encodeSeed(seed),
+                    buildPlaythrough(null, false, itemStart),
+                    options);
+            gui.log("Wrote spoiler log to wl3spoiler-"+encodeSeed(seed)+".txt");
+        }
+        catch (IOException e) {
+            gui.log("Error occurred while writing spoiler log: " + e.getMessage());
+        }
     }
 
     /**
-     * Modifies the given ROM's hint sequence.
+     * Initialize lists in preparation for the game logic to place items.
+     */
+    private static void prepareLists(List<Integer> inventory,
+                                     List<Integer> leftInventory,
+                                     List<Integer> locations,
+                                     List<Integer> treasures,
+                                     List<Integer> mapList,
+                                     List<Level> levelList,
+                                     List<List<Integer>> keyIndexes,
+                                     Random rng) {
+        Collections.shuffle(inventory, rng);
+        Collections.shuffle(locations, rng);
+        if (itemStart) {
+            startingItems = new LinkedList<>();
+            // determine starting items
+            if (fullPowerStart) {
+                for (int i = Items.SWIM_FINS; i <= Items.SPIKED_HELMET; i++) {
+                    startingItems.add(i);
+                }
+            }
+            else if (powerfulStart) {
+                while (startingItems.size() < NUM_POWERS) {
+                    int power = rng.nextInt(9) + Items.SWIM_FINS;
+                    if (startingItems.contains(power) ||
+                            (power == Items.SWIM_FINS && !startingItems.contains(Items.FROG_GLOVES)) ||
+                            (power == Items.GOLD_GLOVES && !startingItems.contains(Items.RED_GLOVES)) ||
+                            (power == Items.RED_OVERALLS && !startingItems.contains(Items.BLUE_OVERALLS))) {
+                        continue;
+                    }
+                    startingItems.add(power);
+                }
+            }
+
+            if (openMode) {
+                List<Integer> openItems = Arrays.asList(Items.AXE,
+                        Items.KEYSTONE_L, Items.KEYSTONE_R,
+                        Items.COG_WHEEL_A, Items.COG_WHEEL_B,
+                        Items.MIST_FAN, Items.TORCH);
+
+                startingItems.addAll(openItems);
+            }
+
+            if (utilityStart) {
+                startingItems.add(Items.MAGNIFYING_GLASS);
+                startingItems.add(Items.TIME_BUTTON);
+            }
+
+            for (int item : startingItems) {
+                inventory.remove(new Integer(item));
+                leftInventory.add(item);
+                Collections.replaceAll(treasures, item,null);
+            }
+        }
+        else {
+            startingItems = new Vector<>();
+        }
+        if (mapShuffle) {
+            mapList = shuffleMap(mapList,itemStart,rng);
+        }
+
+        worldMap = mapList.toArray(new Integer[25]);
+
+        if (keyShuffle) {
+            // prepare key index (ordered list of locations per level where keys will be attempted to be placed)
+            for (int i = 0; i < 25; i++) {
+                List<Integer> subIndex = new ArrayList<>();
+                for (int j = 0; j < 12; j++) {
+                    subIndex.add(j);
+                }
+                Collections.shuffle(subIndex,rng);
+                keyIndexes.add(subIndex);
+            }
+        }
+
+        if (axeStart) {
+            // pre-place the axe in the gray chest of level 0
+            inventory.remove(new Integer(Items.AXE));
+            locations.remove(new Integer(worldMap[0]*4));
+            leftInventory.add(Items.AXE);
+            Collections.replaceAll(treasures,Items.AXE,null);
+            treasures.set(worldMap[0]*4, Items.AXE);
+            if (keyShuffle) {
+                // also place gray key
+                placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
+            }
+        }
+    }
+
+    /**
+     * Initialize and show the GUI.
+     */
+    private static void createGUI() {
+        JFrame frame = new JFrame("Wario Land 3 Randomizer " + VERSION);
+        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        gui = new GUI();
+        frame.add(gui);
+        frame.pack();
+        frame.setVisible(true);
+    }
+
+    /**
+     * Sets the location of the vanilla WL3 ROM.
+     */
+    public static void setVanillaFile(String fileLocation) {
+        vanillaFileLocation = fileLocation;
+    }
+
+    /**
+     * Verify that the given file is actually a WL3 ROM.
      *
-     * @param playthrough Ordered list of treasures to hint at
+     * @param f  file to check
+     * @return true if the file is a WL3 ROM, false otherwise
      * @throws IOException
      */
-    private static byte[] hintPatch(byte[] romBytes, byte[] playthrough) throws IOException {
-        int idx = 0x82cc0;
-        romBytes[idx] = (byte)0x00;
-        for (int i = 0; i < playthrough.length; i++) {
-            romBytes[idx+1+i] = playthrough[i];
+    public static boolean verifyFile(File f) throws IOException {
+        FileInputStream fis = new FileInputStream(f);
+        MessageDigest digest = null;
+        try {
+            digest = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return false;
         }
-        romBytes[idx+1+playthrough.length] = (byte)0xeb;
-        romBytes = applyPatch(romBytes, "hintsPatch.json");
-        return romBytes;
+        byte[] byteArray = new byte[1024];
+        int bytesCount = 0;
+        while ((bytesCount = fis.read(byteArray)) != -1) {
+            digest.update(byteArray, 0, bytesCount);
+        };
+        fis.close();
+        byte[] bytes = digest.digest();
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i< bytes.length ;i++)
+        {
+            sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
+        }
+        return sb.toString().equals("16bb3fb83e8cbbf2c4c510b9f50cf4ee");
     }
 
     /**
-     * Modifies the given ROM's game music.
+     * Place an item from rightInventory somewhere it can be logically acquired.
      *
-     * @param music List of music IDs to use.
+     * @param leftInventory  Items already placed at the beginning of the sequence.
+     * @param rightInventory Items yet to be placed anywhere.
+     * @param locations      Locations without treasure.
+     * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
+     * @param levelList      List of levels and their current key placements.
+     * @param keyIndexes     For each level, the order of locations in which key placements should be attempted
+     * @param bossBoxes      Number of music boxes to give to bosses
+     * @return true if all items were placed successfully, false otherwise
      */
-    private static byte[] musicPatch(byte[] romBytes, Integer[] music) {
-        int idx = 0x3fe00;
-        for (int i = 0; i < music.length; i++) {
-            if (i < 61) {
-                // first 11 tracks are for status effects, should be applied only once
-                // remaining tracks are level themes and should be applied four times each
-                // (one for each level copy for a given time of day)
-                for (int numCopies = (i < 11 ? 1 : 4); numCopies > 0; numCopies--) {
-                    while (romBytes[idx] == (byte) 0xFF || romBytes[idx] == (byte) 0x00) {
-                        idx++;
+    private static boolean placeItemsAssumed(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, List<Level> levelList, List<List<Integer>> keyIndexes, int bossBoxes) {
+        Integer[] bossArray = {
+                3,  // anonster
+                14, // pesce
+                20, // octo
+                27, // helio
+                28, // dollboy
+                34, // kezune
+                37, // shoot
+                48, // wormwould
+                73, // muddee
+                74  // jamano
+        };
+        boolean powersRemain = false;
+        if (bossBoxes == 0 && enableNewLogic) {
+            for (Integer item : rightInventory) {
+                if (item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                    powersRemain = true;
+                    break;
+                }
+            }
+        }
+        List<Integer> bosses = Arrays.asList(bossArray);
+        for (Integer item : rightInventory) {
+            if (bossBoxes > 0 && item > Items.MUSIC_BOX_5) {
+                continue;
+            }
+            if (powersRemain && !(item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET)) {
+                continue;
+            }
+            List<Integer> nextRightInventory = new Vector<>(rightInventory);
+            nextRightInventory.remove(item);
+            List<Integer> curInventory = new Vector<>(nextRightInventory);
+            if (itemStart) {
+                curInventory.addAll(startingItems);
+            }
+            List<Integer> candidateLocations = new Vector<>();
+            List<Integer> checkedList = new Vector<>();
+            boolean foundLocation;
+            do {
+                List<Integer> newItems = new Vector<>();
+                List<Integer> newCandidateLocations = new Vector<>();
+                List<Integer> newCheckedList = new Vector<>();
+                foundLocation = false;
+                for (int location = 0; location < treasures.size(); location++) {
+                    if (checkedList.contains(location) || (bossBoxes > 0 && !bosses.contains(location))) {
+                        continue;
                     }
-                    romBytes[idx] = music[i].byteValue();
+                    if (canAccess(locationNames[location],curInventory,levelList)) {
+                        foundLocation = true;
+                        newCheckedList.add(location);
+                        if (treasures.get(location) == null) {
+                            if (keyShuffle) {
+                                // try and place a key; if we can't, we can't get this treasure
+                                List<Level> nextLevelList = cloneLevelList(levelList);
+                                int levelNum = location / 4;
+                                Level level = nextLevelList.get(levelNum);
+                                int keyNum = location % 4;
+                                List<Integer> subIndexes = keyIndexes.get(levelNum);
+                                if (!placeKey(level,levelNum,keyNum,subIndexes,curInventory)) {
+                                    continue;
+                                }
+                            }
+                            newCandidateLocations.add(location);
+                        }
+                        else {
+                            newItems.add(treasures.get(location));
+                        }
+                    }
+                }
+                if (!curInventory.contains(Items.AXE)) {
+                    if (newItems.contains(Items.TORCH)) {
+                        // without the axe, we must have found the torch in level 0
+                        // take only the torch and restart scan (to avoid softlock potential)
+                        curInventory.add(Items.TORCH);
+                        checkedList.add(treasures.indexOf(Items.TORCH));
+                        continue;
+                    }
+                    else if (newItems.contains(Items.KEYSTONE_L) && newItems.contains(Items.KEYSTONE_R)) {
+                        // similarly, we want to avoid a rare softlock that could occur if we escape from N1 by heading west
+                        curInventory.add(Items.KEYSTONE_L);
+                        curInventory.add(Items.KEYSTONE_R);
+                        checkedList.add(treasures.indexOf(Items.KEYSTONE_L));
+                        checkedList.add(treasures.indexOf(Items.KEYSTONE_R));
+                        continue;
+                    }
+                }
+                curInventory.addAll(newItems);
+                candidateLocations.addAll(newCandidateLocations);
+                checkedList.addAll(newCheckedList);
+            } while (foundLocation);
+
+            if (candidateLocations.size() == 0) {
+                fails++;
+                if (fails >= 500) return false;
+                continue;
+            }
+
+            for (int location : locations) {
+                if (candidateLocations.contains(location)) {
+                    List<Level> nextLevelList = levelList;
+                    if (keyShuffle) {
+                        // place key
+                        nextLevelList = cloneLevelList(levelList);
+                        int levelNum = location / 4;
+                        Level level = nextLevelList.get(levelNum);
+                        int keyNum = location % 4;
+                        List<Integer> subIndexes = keyIndexes.get(levelNum);
+                        if (!placeKey(level,levelNum,keyNum,subIndexes,curInventory)) {
+                            continue;
+                        }
+                    }
+
+
+                    List<Integer> nextTreasures = new Vector<>(treasures);
+                    List<Integer> nextLocations = new Vector<>(locations);
+                    nextLocations.remove(new Integer(location));
+                    nextTreasures.set(location, item);
+                    if (nextRightInventory.size() == 0) {
+                        for (int i = 0; i < nextTreasures.size(); i++) {
+                            if (nextTreasures.get(i) != null) {
+                                finalTreasures[i] = nextTreasures.get(i);
+                            }
+                        }
+                        if (itemStart) {
+                            nextTreasures.addAll(startingItems);
+                        }
+                        for (int i = 0; i < finalKeyLocations.length; i++) {
+                            finalKeyLocations[i] = nextLevelList.get(i);
+                            for (int j = 0; j < 4; j++) {
+                                if (finalKeyLocations[i].getLocation(j) == null) {
+                                    boolean success = placeKey(finalKeyLocations[i],i,j,keyIndexes.get(i),nextTreasures);
+                                    if (!success) {
+                                        return false; // this shouldn't happen!
+                                    }
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                    else if (bossBoxes > 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes, bossBoxes-1)) {
+                        return true;
+                    }
+                    else if (bossBoxes == 1 && placeItemsLeft(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes)) {
+                        return true;
+                    }
+                    else if (bossBoxes < 1 && placeItemsAssumed(leftInventory, nextRightInventory, nextLocations, nextTreasures, nextLevelList, keyIndexes, 0)) {
+                        return true;
+                    }
+                    fails++;
+                    if (fails >= 500) return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Place the requested color key in a given level, so that it can be acquired with the given inventory.
+     *
+     * @param level      Level object representing the current state of the level.
+     * @param levelNum   Level number from 0-24 representing which in-game level this is.
+     * @param keyNum     Key number from 0-3; 0 = gray, 1 = red, 2 = green, 3 = blue
+     * @param subIndexes This level's entry in the key index; the order in which to attempt key locations
+     * @param inventory  The items Wario currently has
+     *
+     * @return true if a key was successfully placed
+     */
+    private static boolean placeKey(Level level, int levelNum, int keyNum, List<Integer> subIndexes, List<Integer> inventory) {
+        for (Integer index : subIndexes) {
+            KeyLocation candidate = allKeyLocations[levelNum].getLocation(index);
+            int region = candidate.getRegion();
+
+            int location = candidate.getSubLocation();
+
+            boolean clash = false;
+            for (int i = 0; i < 4; i++) {
+                if (level.getLocation(i) != null && level.getLocation(i).getRegion() == region) {
+                    clash = true;
+                    break;
+                }
+            }
+
+            if (!clash) {
+                if ((canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,true, keyNum, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,true)) ||
+                        (canAccessKeyLocation(level.getLevelName(),candidate.getRegion(),location,false, keyNum, inventory) && canAccess(locationNames[levelNum*4+keyNum],inventory,null,false,false,false))) {
+                    level.setLocation(keyNum, candidate);
+                    level.setInventory(keyNum, inventory);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Place an item from rightInventory at the beginning of the sequence (moving it to leftInventory).
+     *
+     * @param leftInventory  Items already placed at the beginning of the sequence.
+     * @param rightInventory Items yet to be placed anywhere.
+     * @param locations      Locations without treasure.
+     * @param treasures      All placed treasures, ordered by location (using null to represent still-empty locations)
+     * @param levelList      List of levels and their current key placements.
+     * @param keyIndexes     For each level, the order of locations in which key placements should be attempted
+     *
+     * @return true if all items were placed successfully, false otherwise
+     */
+    private static boolean placeItemsLeft(List<Integer> leftInventory, List<Integer> rightInventory, List<Integer> locations, List<Integer> treasures, List<Level> levelList, List<List<Integer>> keyIndexes) {
+        if (fails >= (keyShuffle ? 500 : 500)) {
+            return false;
+        }
+        int cutoff = enableNewLogic ? 60 : 60;
+        int numPowers = 0;
+        for (Integer item : leftInventory) {
+            if (item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                numPowers++;
+            }
+        }
+        //boolean forwardGPStart = treasures.get(0) != null && (treasures.get(0).equals(Items.BLUE_OVERALLS) || treasures.get(0).equals(Items.RED_OVERALLS));
+        for (Integer location : locations) {
+            boolean forwardGPStart = !leftInventory.contains(Items.AXE) && !leftInventory.contains(Items.TORCH) && !(leftInventory.contains(Items.KEYSTONE_L) && leftInventory.contains(Items.KEYSTONE_R));
+            if (!canAccess(locationNames[location], leftInventory, levelList, forwardGPStart, false)) {
+                continue;
+            }
+            List<Level> nextLevelList = levelList;
+            if (keyShuffle) {
+                nextLevelList = cloneLevelList(levelList);
+                if (!placeKey(cloneLevelList(levelList).get(location / 4), location / 4, location % 4, keyIndexes.get(location / 4), leftInventory)) {
+                    continue;
+                }
+            }
+
+            boolean forceTorch = false;
+            boolean forceKeys = false;
+            if (forwardGPStart) {
+                // because of the possibility of multiple treasures being available in the first level of map shuffle,
+                // we need to be sure the player can't softlock by warping out with the torch before getting all
+                // treasures.
+                boolean torchFirst = false;
+                // same with the two keystones
+                int keystones = 0;
+                for (Integer item : rightInventory) {
+                    if (item == Items.AXE) {
+                        break;
+                    }
+                    else if (item == Items.KEYSTONE_L || item == Items.KEYSTONE_R) {
+                        keystones++;
+                        if (keystones == 2) {
+                            break;
+                        }
+                    }
+                    else if (item == Items.TORCH) {
+                        torchFirst = true;
+                        break;
+                    }
+                }
+                if (torchFirst) {
+                    int levelIdx = (location / 4) * 4;
+                    int locationsLeft = 0;
+                    for (int i = levelIdx; i < levelIdx + 4; i++) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory, levelList)) {
+                            locationsLeft++;
+                        }
+                    }
+                    if (locationsLeft > 1) {
+                        forceTorch = true;
+                    }
+                }
+                else if (keystones == 2) {
+                    int levelIdx = (location / 4) * 4;
+                    int locationsLeft = 0;
+                    for (int i = levelIdx; i < levelIdx + 4; i++) {
+                        if (treasures.get(i) == null && canAccess(locationNames[i], leftInventory, levelList)) {
+                            locationsLeft++;
+                        }
+                    }
+                    if (locationsLeft > 1) {
+                        forceKeys = true;
+                    }
+                }
+            }
+
+            for (Integer item : rightInventory) {
+                if (enableNewLogic && numPowers > -1 && item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
+                    continue;
+                }
+                if (forceTorch && item != Items.TORCH) {
+                    continue;
+                }
+                else if (forceKeys && item != Items.KEYSTONE_R && item != Items.KEYSTONE_L) {
+                    continue;
+                }
+                else if (item == Items.TORCH && location/4 == worldMap[0] && treasures.indexOf(Items.AXE)/4 == worldMap[0]) {
+                    continue;
+                }
+                List<Integer> nextLeftInventory = new Vector<>(leftInventory);
+                nextLeftInventory.add(item);
+                List<Integer> nextRightInventory = new Vector<>(rightInventory);
+                nextRightInventory.remove(item);
+                List<Integer> nextTreasures = new Vector<>(treasures);
+                List<Integer> nextLocations = new Vector<>(locations);
+                nextTreasures.set(location, item);
+                nextLocations.remove(location);
+                if (keyShuffle) {
+                    // also place the appropriate key
+                    nextLevelList = cloneLevelList(levelList);
+                    if (!placeKey(nextLevelList.get(location / 4), location / 4, location % 4, keyIndexes.get(location / 4), leftInventory)) {
+                        continue;
+                    }
+                }
+
+                int locationsLeft;
+                boolean restartScan;
+                do {
+                    locationsLeft = 0;
+                    restartScan = false;
+                    for (Integer checkLocation = 0; checkLocation < 100; checkLocation++) {
+                        if (!checkLocation.equals(location) && canAccess(locationNames[checkLocation], nextLeftInventory, nextLevelList, forwardGPStart, false)) {
+                            if (treasures.get(checkLocation) != null) {
+                                if (!nextLeftInventory.contains(treasures.get(checkLocation))) {
+                                    nextLeftInventory.add(treasures.get(checkLocation));
+                                    restartScan = true;
+                                    break;
+                                }
+                            }
+                            else if (keyShuffle && !placeKey(cloneLevelList(nextLevelList).get(checkLocation/4),checkLocation/4,checkLocation%4,keyIndexes.get(checkLocation / 4),nextLeftInventory)) {
+                                // do nothing
+                            }
+                            else {
+                                locationsLeft++;
+                            }
+                        }
+                    }
+                } while (restartScan);
+                if (locationsLeft == 0) {
+                    continue;
+                }
+                if (nextRightInventory.size() == 0) {
+                    for (int i = 0; i < nextTreasures.size(); i++) {
+                        if (nextTreasures.get(i) != null) {
+                            finalTreasures[i] = nextTreasures.get(i);
+                        }
+                    }
+                    if (itemStart) {
+                        nextTreasures.addAll(startingItems);
+                    }
+                    for (int i = 0; i < finalKeyLocations.length; i++) {
+                        finalKeyLocations[i] = nextLevelList.get(i);
+                        for (int j = 0; j < 4; j++) {
+                            if (finalKeyLocations[i].getLocation(j) == null) {
+                                boolean success = placeKey(finalKeyLocations[i],i,j,keyIndexes.get(i),nextTreasures);
+                                if (!success) {
+                                    return false; // this shouldn't happen!
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                }
+                else if (nextRightInventory.size() < cutoff && placeItemsAssumed(nextLeftInventory, nextRightInventory, nextLocations, nextTreasures,nextLevelList,keyIndexes, 0)) {
+                    return true;
+                }
+                else if ((nextRightInventory.size() >= cutoff) && placeItemsLeft(nextLeftInventory,nextRightInventory,nextLocations,nextTreasures,nextLevelList,keyIndexes)) {
+                    return true;
+                }
+                else if (fails >= (keyShuffle ? 500 : 500)) {
+                    return false;
+                }
+            }
+            fails++;
+        }
+        return false;
+    }
+
+    /**
+     * Randomize the game's music.
+     *
+     * @param chaotic false if music should be shuffled; true if it should be completely randomized
+     * @param rng random object to use
+     * @return a list of music tracks in the order they should be added to the ROM
+     */
+    private static Integer[] shuffleMusic(boolean chaotic, Random rng) {
+        Integer[] vanilla = { 0x16, 0x1a, 0x1f, 0x17, 0x1c, 0x19, 0x18, 0x1b, 0x20, 0x1e, 0x1d, // statuses
+                          0x01, 0x02, 0x07, 0x08, 0x0e, 0x0f, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, // north
+                          0x05, 0x05, 0x0c, 0x0b, 0x13, 0x14, 0x07, 0x08, 0x11, 0x11, 0x0d, 0x0d, // west
+                          0x0e, 0x0f, 0x10, 0x10, 0x05, 0x05, 0x10, 0x10, 0x12, 0x12, 0x09, 0x0a, // south
+                          0x13, 0x14, 0x06, 0x06, 0x0c, 0x0b, 0x12, 0x12, 0x04, 0x04, 0x0d, 0x0d, 0x03, 0x03, //east
+                          0x21, 0x22, 0x23, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2e, 0x2f, 0x30, 0x32, 0x32, 0x33, 0x37, 0x35, 0x36, 0x38, 0x3a}; // other songs (titlescreen, map, etc)
+
+        if (chaotic) {
+            Integer[] notLooped = { 0x15, 0x24, 0x2a, 0x2b, 0x2c, 0x2d, 0x31, 0x34, 0x39 };
+            List<Integer> disallowed = Arrays.asList(notLooped);
+            for (int i = 0; i < vanilla.length; i++) {
+                Integer newMusic;
+                do {
+                    newMusic = rng.nextInt(0x3A) + 1;
+                } while (disallowed.contains(newMusic));
+                vanilla[i] = newMusic;
+            }
+            return vanilla;
+        }
+        else {
+            List<Integer> newMusic = Arrays.asList(vanilla);
+            Collections.shuffle(newMusic, rng);
+            return newMusic.toArray(new Integer[newMusic.size()]);
+        }
+    }
+
+    /**
+     * Randomize the game's world map. Ensures that the first level has an item reachable with an empty inventory.
+     *
+     * @param initialMap  initial list of locations to shuffle
+     * @param rng         random object to use
+     * @return A shuffled list of locations
+     */
+    private static List<Integer> shuffleMap(List<Integer> initialMap, boolean powerStart, Random rng) {
+        Vector<Integer> shuffledMap = new Vector<>(initialMap);
+        Collections.shuffle(shuffledMap, rng);
+        worldMap = shuffledMap.toArray(new Integer[25]);
+        if (!fullPowerStart) {
+            Integer firstLevel = 0;
+//            Integer[] firstLevelsArr = {0, 1, 2, 4, 6, 7, 9, 13, 14, 15, 17, 18, 19, 21, 24};
+//            List<Integer> firstLevels = Arrays.asList(firstLevelsArr);
+
+            for (Integer level : shuffledMap) {
+//                if (firstLevels.contains(level)) {
+                if (axeStart) {
+                    if (canAccess(locationNames[level*4], startingItems, null, false, true)) {
+                        firstLevel = level;
+                        break;
+                    }
+                }
+                else if (canAccess(locationNames[level*4], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+1], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+2], startingItems, null, false, true) ||
+                        canAccess(locationNames[level*4+3], startingItems, null, false, true)) {
+                    firstLevel = level;
+                    break;
+                }
+            }
+            shuffledMap.remove(firstLevel);
+            shuffledMap.insertElementAt(firstLevel, 0);
+        }
+        return shuffledMap;
+    }
+
+    /**
+     * Shuffle golf courses.
+     *
+     * @param rng  Seeded random object to use
+     * @return an array of Integers representing the order in which golf courses should be shuffled
+     */
+    private static Integer[] shuffleGolf(Random rng) {
+        List<Integer> golfOrder = new ArrayList<>();
+        for (int i = 0; i < 0x14; i++) {
+            golfOrder.add(i);
+        }
+        Collections.shuffle(golfOrder,rng);
+        return golfOrder.toArray(new Integer[0x14]);
+    }
+
+    /**
+     * Encode a random seed, transforming it into a user-friendly 11-character String representation.
+     *
+     * @param seed  a random seed in long format
+     * @return a String encoding of the provided seed
+     */
+    private static String encodeSeed(long seed) {
+        char[] chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_!".toCharArray();
+        String codedSeed = "";
+        int idx = 0;
+        for (int i = 1; i <= 64; i++) {
+            idx >>>= 1;
+            if ((seed & 1) == 1) {
+                idx += 32;
+            }
+            seed >>>= 1;
+            if (i % 6 == 0) {
+                codedSeed = chars[idx] + codedSeed;
+                idx = 0;
+            }
+        }
+        idx >>>= 2;
+        codedSeed = chars[idx] + codedSeed;
+        return codedSeed;
+    }
+
+    /**
+     * Decode a string representation of a random seed, transforming it into a usable long that can be passed in a Random constructor.
+     *
+     * @param codedSeed  an 11-character String representation of a random seed
+     * @return the decoded long form of the provided seed
+     */
+    private static long decodeSeed(String codedSeed) throws Exception {
+        String chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_!";
+        char[] codedChars = codedSeed.toCharArray();
+
+        for (char c : codedSeed.toCharArray()) {
+            if (chars.indexOf(c) < 0) {
+                throw new Exception();
+            }
+        }
+        long seed = 0L;
+        for (int i = 0; i < codedChars.length; i++) {
+            seed <<= 6;
+            int val = chars.indexOf(codedChars[i]);
+            seed |= val;
+        }
+        return seed;
+    }
+
+    /**
+     * Tests the difficulty of the seed.
+     *
+     * @param powerStart Whether or not Wario began the game with items
+     * @return true if the difficulty is appropriate for the currently set level
+     */
+    private static boolean testDifficulty(boolean powerStart) {
+        int targetDifficulty = difficulty;
+        List<Integer> inventory = new Vector<>();
+        if (powerStart) {
+            inventory.addAll(startingItems);
+        }
+        List<Integer> locationsChecked = new Vector<>();
+
+        List<Level> finalKeyLocationList = Arrays.asList(finalKeyLocations);
+
+        difficulty = Difficulty.EASY;
+        int[] blockers = {-1, -1, -1, -1};
+        int[] winBlockers = {0, 0, 0, 0};
+        while (difficulty <= Difficulty.S_HARD) {
+            boolean gotItem;
+            do {
+                List<Integer> newItems = new Vector<>();
+                gotItem = false;
+                for (int i = 0; i < finalTreasures.length; i++) {
+
+                    if (locationsChecked.contains(i)) continue;
+                    if (canAccess(locationNames[i], inventory, finalKeyLocationList, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
+                        locationsChecked.add(i);
+                        gotItem = true;
+                        difficulty = Difficulty.EASY;
+                        newItems.add(finalTreasures[i]);
+                        if (finalTreasures[i] == Items.TORCH) break;
+                    }
+                }
+                inventory.addAll(newItems);
+            } while (gotItem);
+            blockers[difficulty]++;
+            if (!inventory.containsAll(Arrays.asList(Items.MUSIC_BOX_1,
+                    Items.MUSIC_BOX_2,
+                    Items.MUSIC_BOX_3,
+                    Items.MUSIC_BOX_4,
+                    Items.MUSIC_BOX_5,
+                    Items.AXE,
+                    Items.GOLD_GLOVES)) ||
+                !canGP(inventory)) {
+                winBlockers[difficulty]++;
+            }
+            difficulty++;
+        }
+        difficulty = targetDifficulty;
+        for (int i = 0; i < 4; i++) {
+            if (i == targetDifficulty - 1 && winBlockers[i] < 2 && difficulty > Difficulty.NORMAL) {
+                return false;
+            }
+            else if (i >= targetDifficulty && blockers[i] > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Build a playthrough to set up hints.
+     *
+     * @param rng random object to use
+     * @param strategic true for "strategic" hints
+     * @return An array of treasures, in the order they should be hinted at
+     */
+    private static byte[] buildPlaythrough(Random rng, boolean strategic, boolean powerStart) {
+        List<Integer> inventory = new Vector<>();
+        if (powerStart) {
+            inventory.addAll(startingItems);
+        }
+        List<Integer> locationsChecked = new Vector<>();
+        byte[] playthrough = new byte[100];
+        int idx = 0;
+        int stratIdx = 1;
+
+        int sphere = 0;
+
+        if (strategic) {
+            playthrough[0] = Items.AXE;
+            playthrough[6] = Items.GOLD_GLOVES;
+            playthrough[7] = Items.RED_OVERALLS;
+            idx = 8;
+        }
+
+        List<Level> finalKeyLocationList = Arrays.asList(finalKeyLocations);
+
+        boolean gotItem;
+        do {
+            List<Integer> newItems = new Vector<>();
+            gotItem = false;
+            for (int i = 0; i < finalTreasures.length; i++) {
+
+                if (locationsChecked.contains(i)) continue;
+                if (canAccess(locationNames[i], inventory, finalKeyLocationList, !inventory.contains(Items.AXE) && !inventory.contains(Items.TORCH), false)) {
+                    locationsChecked.add(i);
+                    gotItem = true;
+                    newItems.add(finalTreasures[i]);
+                    if (finalTreasures[i] == Items.TORCH) break;
+                }
+            }
+            if (rng != null) {
+                Collections.shuffle(newItems, rng);
+            }
+            for (int item : newItems) {
+                if (strategic && (item == Items.AXE || item == Items.GOLD_GLOVES || item == Items.RED_OVERALLS || item == Items.EMPTY)) {
+                    // do nothing; this item has already been preset as a strategic hint
+                }
+                else if (strategic && item <= Items.MUSIC_BOX_5) {
+                    playthrough[stratIdx] = (byte)item;
+                    stratIdx++;
+                }
+                else {
+                    playthrough[idx] = (byte) item;
                     idx++;
                 }
             }
-            else {
-                int[] otherAddrs = {0x168a, 0x168c, 0x168e, 0x3ba5, 0x3bb2, 0x448e, 0x4cf0d, 0x9a3df, 0xace55, 0xae628, 0xaf7f5, 0xdb381, 0xdc060, /*0x1600f4,*/ 0x1c80b4, 0x1c89e4, 0x1e01b7, 0x1e01e3, 0x1f00a6, 0x1f802a};
-                romBytes[otherAddrs[i-61]] = music[i].byteValue();
-            }
-        }
-        romBytes[0x44f5] = romBytes[0x448e]; // titlescreen music loaded twice in quick succession from different places (volume related??)
-        return romBytes;
+            inventory.addAll(newItems);
+            sphere++;
+        } while (gotItem);
+        return playthrough;
     }
 
     /**
-     * Applies map shuffle to the given ROM.
-     *
-     * @param worldMap List of level IDs, in the order they should appear on the map.
-     * @return
-     * @throws IOException
+     * Check if the provided inventory allows Wario to swim.
      */
-    private static byte[] mapPatch(byte[] romBytes, Integer[] worldMap, boolean keyShuffle) throws IOException {
-        // logic update patch, allowing for levels from the first half of the game to appear in the second and vice versa
-        romBytes = applyPatch(romBytes, "mapShufflePatch.json");
-        // reorder level tile/object pointer table
-        romBytes = scrambleLevels(romBytes,worldMap, 16, 0xc00be);
-        // reorder level warp pointer table
-        romBytes = scrambleLevels(romBytes,worldMap, 16, 0xc0319);
-        // reorder level entry table
-        romBytes = scrambleLevels(romBytes,worldMap, 8, 0x4eba);
-        // reassign nameplates on world map in both english and japanese
-        int[] gfxSkips = {6, 13, 14, 21, 22};
-        romBytes = scrambleLevels(romBytes,worldMap, 0x200, 0x94200, gfxSkips);
-        romBytes = scrambleLevels(romBytes,worldMap, 0x200, 0x90200, gfxSkips);
-        // reassign text level names (for temple hints) in both english and japanese
-        romBytes = scrambleHintText(romBytes,worldMap,0xb211a,0x74000);
-        romBytes[0xacc4b] = (byte)0x00;
-        romBytes[0xacc4c] = (byte)0x40;
-        romBytes[0xacc4e] = (byte)0x1D;
-        romBytes = scrambleHintText(romBytes,worldMap,0xb1fd7, 0x74220);
-        romBytes[0xacc46] = (byte)0x20;
-        romBytes[0xacc47] = (byte)0x42;
+    private static boolean canSwim(List<Integer> inventory) {
+        return inventory.contains(Items.FROG_GLOVES) || inventory.contains(Items.SWIM_FINS);
+    }
 
-        // the warp data for all North and West levels is stored in bank 0x30, while the warp data for all
-        // South and East levels is stored in 0x31. For the patch to work we need to supply a list of which
-        // map nodes have North and West levels, so the game knows which bank to load from.
-        // S1 The Grasslands is a special case, as its Day levels exist on bank 0x30.
-        int idx = 0x3d6c;
-        int offset = 0;
-        int grasslandsIdx = 0;
+    /**
+     * Check if the provided inventory allows Wario to swim against currents.
+     */
+    private static boolean canSuperSwim(List<Integer> inventory) {
+        return inventory.contains(Items.SWIM_FINS);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to ground pound.
+     */
+    private static boolean canGP(List<Integer> inventory) {
+        return inventory.contains(Items.BLUE_OVERALLS) || inventory.contains(Items.RED_OVERALLS);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to super ground pound.
+     */
+    private static boolean canSuperGP(List<Integer> inventory) {
+        return inventory.contains(Items.RED_OVERALLS);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to lift small objects.
+     */
+    private static boolean canLift(List<Integer> inventory) {
+        return inventory.contains(Items.RED_GLOVES) || inventory.contains(Items.GOLD_GLOVES);
+    }
+
+    /**
+     * Check if the provided inventory allows wario to lift large objects.
+     */
+    private static boolean canSuperLift(List<Integer> inventory) {
+        return inventory.contains(Items.GOLD_GLOVES);
+    }
+
+    /**
+     * Check if the given level can be entered in the daytime given the provided inventory, assuming it can be entered at all.
+     */
+    private static boolean isDaytime(String location, List<Integer> inventory) {
+        if (inventory.contains(Items.SUN_FRAGMENT_L) && inventory.contains(Items.SUN_FRAGMENT_R)) {
+            return true;
+        }
+        int falseIdx = "NWSE".indexOf(location.charAt(0))*6 + (Integer.parseInt(location.substring(1))-1);
         for (int i = 0; i < worldMap.length; i++) {
-            if (worldMap[i] > 12) {
-                continue;
+            if (worldMap[i] == falseIdx) {
+                return i < 18;
             }
-            else if (worldMap[i] == 12) {
-                grasslandsIdx = i;
-                continue;
-            }
-            romBytes[idx+offset] = (byte)i;
-            offset++;
         }
-        romBytes[idx+offset] = (byte)0xff;
-        romBytes[idx+offset+1] = (byte)grasslandsIdx;
-        // similarly, we need to update level #s in the transition level swap table, and then sort them by level #
-        idx = 0x3cd4;
-        List<byte[]> levelTransitionSwaps = new Vector<>();
-        while (romBytes[idx] != (byte)0xff) {
-            int levelIdx = romBytes[idx] & 0xFF;
+        return false;
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
+     */
+    private static boolean canAccess(String location, List<Integer> inventory) {
+        if (location.length() == 3) {
+            return false; // this shouldn't happen
+        }
+        return canAccess(location, inventory, null, false, false);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
+     *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
+     *                    a treasure at that location
+     */
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations) {
+        return canAccess(location, inventory, keyLocations, false, false);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
+     *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
+     *                    a treasure at that location
+     * @param adjusted if true, and location is a two-character level code, will not adjust for the effects of map shuffle
+     */
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations, boolean forwardGPStart, boolean adjusted) {
+        return canAccess(location, inventory, keyLocations, forwardGPStart, adjusted, true)
+                || canAccess(location, inventory, keyLocations, forwardGPStart, adjusted, false);
+    }
+
+    /**
+     * Check if the provided inventory allows Wario to access the given location.
+     *
+     * @param location A string representing a location, in one of the following formats:
+     *                  - a level code, e.g. "E2", will return whether or not Wario can reach that level on the world map
+     *                  - a two-character diagonal direction, e.g. "NW", will return whether or not Wario can warp to
+     *                    that border using NEXT MAP
+     *                  - a full three-character location code, e.g. "N2R", will return whether or not Wario can collect
+     *                    a treasure at that location
+     * @param adjusted if true, and location is a two-character level code, will not adjust for the effects of map shuffle
+     */
+    private static boolean canAccess(String location, List<Integer> inventory, List<Level> keyLocations, boolean forwardGPStart, boolean adjusted, boolean dayOnly) {
+
+        if (location.equals("NW")) {
+            return inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R);
+        }
+        else if (location.equals("NE")) {
+            return inventory.contains(Items.TORCH);
+        }
+        else if (location.equals("SW")) {
+            return inventory.contains(Items.COG_WHEEL_A) && inventory.contains(Items.COG_WHEEL_B)
+                    && (canAccess("NW",inventory) ||
+                        ((canAccess("NE",inventory) && inventory.contains(Items.MIST_FAN))));
+        }
+        else if (location.equals("SE")) {
+            return inventory.contains(Items.MIST_FAN)
+                    && (canAccess("NE",inventory) ||
+                        ((canAccess("NW",inventory) && (inventory.contains(Items.COG_WHEEL_A) && inventory.contains(Items.COG_WHEEL_B)))));
+        }
+
+        if (!adjusted && location.length() == 2) {
+            int falseIdx = "NWSE".indexOf(location.charAt(0))*6 + (Integer.parseInt(location.substring(1))-1);
             for (int i = 0; i < worldMap.length; i++) {
-                if (worldMap[i].byteValue() << 3 == levelIdx) {
-                    byte[] swap = {(byte)(i<<3), romBytes[idx+1], romBytes[idx+2], romBytes[idx+3], romBytes[idx+4]};
-                    levelTransitionSwaps.add(swap);
+                if (worldMap[i] == falseIdx) {
+                    location = "" + ("NWSEE".charAt(i/6)) + ((i == 24) ? "7" : Character.forDigit((i%6)+1,10));
+                    break;
                 }
             }
-            idx += 0x05;
         }
-        Collections.sort(levelTransitionSwaps, new Comparator<byte[]>() {
-            @Override
-            public int compare(byte[] o1, byte[] o2) {
-                return (o1[0] & 0xFF) - (o2[0] & 0xFF);
+
+        if (location.equals("N1")) {
+            return true;
+        }
+        else if (location.equals("N2")) {
+            return inventory.contains(Items.AXE) || inventory.contains(Items.TORCH);
+        }
+        else if (location.equals("N3")) {
+            return inventory.contains(Items.AXE) || (inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R));
+        }
+        else if (location.equals("N4")) {
+            return inventory.contains(Items.MUSIC_BOX_2) && canAccess("N3", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("N5")) {
+            return canAccess("N4", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("N6")) {
+            return inventory.contains(Items.GARLIC) && canAccess("N5", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("W5")) {
+            return inventory.contains(Items.MUSIC_BOX_4) && canAccess("W3", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("W6")) {
+            return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
+                    && canAccess("W2", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("S4")) {
+            return inventory.contains(Items.ANGER_HALBERD) && inventory.contains(Items.ANGER_SPELL)
+                    && canAccess("S2", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("S5")) {
+            return inventory.contains(Items.MUSIC_BOX_3)
+                    && canAccess("S2", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("S6")) {
+            return inventory.contains(Items.SKY_KEY)
+                    && canAccess("S3", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("E3")) {
+            return inventory.contains(Items.LAMP) && inventory.contains(Items.FLAME)
+                    && canAccess("E1", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("E5")) {
+            return inventory.contains(Items.WARP_COMPACT)
+                    && canAccess("E7", inventory, keyLocations, false, true);
+        }
+        else if (location.equals("E6")) {
+            return inventory.contains(Items.CRATER_MAP)
+                    && canAccess("E3", inventory, keyLocations, false, true);
+        }
+        else if (location.length() == 2) {
+            return canAccessFromWest(location, inventory) || canAccessFromEast(location, inventory);
+        }
+
+        // check N1 node accessibility
+        if (inventory.contains(Items.TORCH) || (inventory.contains(Items.KEYSTONE_L) && inventory.contains(Items.KEYSTONE_R))) {
+            int falseIdx = "NWSE".indexOf(location.charAt(0)) * 6 + (Integer.parseInt(location.substring(1, 2)) - 1);
+            if (worldMap[0] == falseIdx) {
+                if (!inventory.contains(Items.AXE)) {
+                    return false;
+                }
             }
-        });
-        idx = 0x3cd4;
-        for (byte[] swap : levelTransitionSwaps) {
-            for (byte i : swap) {
-                romBytes[idx] = i;
-                idx++;
-            }
         }
 
-        if (keyShuffle) {
-            scrambleLevels(romBytes,worldMap,3,0x36eb);
+        // if we're restricted to daytime, make sure we can actually enter this level in the daytime
+        if (dayOnly && !isDaytime(location.substring(0,2),inventory)) {
+            return false;
         }
 
-        // also scramble the music table
-        scrambleLevels(romBytes, worldMap, 16, 0x3fe40);
+        // if a key has been placed, make sure we can get it
+        if (keyLocations != null && !canAccessKey(keyLocations,location,dayOnly,inventory)) {
+            return false;
+        }
 
-        return romBytes;
+        if (location.equals("N1S")) {
+            return canAccess("N1", inventory);
+        }
+        else if (location.equals("N1R")) {
+            return canAccess("N1", inventory)
+                    && (canGP(inventory)
+                    || (difficulty > Difficulty.EASY && inventory.contains(Items.GARLIC)));
+        }
+        else if (location.equals("N1G")) {
+            return canAccess("N1", inventory)
+                    && ((dayOnly && difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))
+                    || (inventory.contains(Items.WIND) && inventory.contains(Items.WIND_BAG)));
+        }
+        else if (location.equals("N1B")) {
+            return canAccess("N1", inventory)
+			/*
+			* Added MERCILESS Logic to this chest. With a throw + dashjump wallclip,
+			* you can skip the need for both Overalls and Garlic by skipping the boss fight outright.
+			*/
+                    && inventory.contains(Items.POWDER)
+                    && inventory.contains(Items.JUMP_BOOTS)
+                    && canLift(inventory)
+                    && (canGP(inventory) && (difficulty > Difficulty.EASY || inventory.contains(Items.GARLIC))
+						|| difficulty >= Difficulty.MERCILESS);
+        }
+        else if (location.equals("N2S")) {
+            return canAccess("N2", inventory);
+        }
+        else if (location.equals("N2R")) {
+            return canAccess("N2", inventory)
+                    && (inventory.contains(Items.FLUTE)
+                    || inventory.contains(Items.JUMP_BOOTS)
+                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory))
+                    || (difficulty >= Difficulty.S_HARD));
+        }
+        else if (location.equals("N2G")) {
+            return canAccess("N2", inventory)
+                    && canGP(inventory)
+                    && (inventory.contains(Items.FLUTE)
+                    || inventory.contains(Items.JUMP_BOOTS)
+                    || (inventory.contains(Items.GARLIC) && canSuperGP(inventory))
+                    || (difficulty >= Difficulty.S_HARD));
+        }
+        else if (location.equals("N2B")) {
+            return canAccess("N2", inventory)
+                    && canSuperGP(inventory);
+        }
+        else if (location.equals("N3S")) {
+            return canAccess("N3", inventory);
+        }
+        else if (location.equals("N3R")) {
+            return canAccess("N3", inventory)
+                    && canGP(inventory);
+        }
+        else if (location.equals("N3G")) {
+			/*
+			* Added MERCILESS logic for this chest.
+			* 1. Have a Teruteru land on Wario and take it to the area under Mad Scienstein.
+			* 2. Walk to the left of the Seeing Eye Door to release the Teruteru.
+			* 3. Align with the proper pixel and do a dashjump wallclip up to near Mad Scienstein. 
+			*		=> This is the last point where you can make a suspend save before committing to an attempt at this.
+			* 4. Have the Teruteru land on Wario again.
+			* 5. Jump repeatedly to reach the top of the level while the Teruteru is still on Wario.
+			* 6. Walk off the right side and continue holding Left to release the Teruteru and reach the Overhang with the pipe.
+			*		=> This execution skips the need for any powerups for this chest.
+			*/
+            return canAccess("N3", inventory)
+                    && (inventory.contains(Items.BEANSTALK_SEEDS)
+                    || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+					|| (difficulty >= Difficulty.MERCILESS));
+        }
+        else if (location.equals("N3B")) {
+            return canAccess("N3", inventory)
+                    && inventory.contains(Items.BLUE_CHEMICAL)
+                    && inventory.contains(Items.RED_CHEMICAL);
+        }
+        else if (location.equals("N4S")) {
+            return canAccess("N4", inventory);
+        }
+        else if (location.equals("N4R")) {
+            return canAccess("N4", inventory)
+                    && inventory.contains(Items.GARLIC);
+        }
+        else if (location.equals("N4G")) {
+            return canAccess("N4", inventory)
+                    && canSuperSwim(inventory);
+        }
+        else if (location.equals("N4B")) {
+            return canAccess("N4", inventory)
+                    && inventory.contains(Items.PUMP)
+                    && (difficulty >= Difficulty.HARD || canLift(inventory));
+        }
+        else if (location.equals("N5S")) {
+            return canAccess("N5", inventory);
+        }
+        else if (location.equals("N5R")) {
+            return canAccess("N5", inventory)
+                    && canLift(inventory)
+                    && canSwim(inventory);
+        }
+        else if (location.equals("N5G")) {
+            return canAccess("N5", inventory)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.WIRE_WIZARD))
+                    && !dayOnly;
+        }
+        else if (location.equals("N5B")) {
+            return canAccess("N5", inventory)
+                    && inventory.contains(Items.GROWTH_SEED)
+                    && inventory.contains(Items.GARLIC)
+                    && canSwim(inventory);
+        }
+        else if (location.equals("N6S")) {
+			/*
+			* New logic addition for this chest for MINOR GLITCHES. 
+			* You can skip the need for Boots using a Walljump when compared to HARD.
+			*/
+            return canAccess("N6", inventory)
+                    && inventory.contains(Items.GARLIC)
+                    && inventory.contains(Items.SPIKED_HELMET)
+                    && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD)
+                        || canSwim(inventory))
+                    && canGP(inventory);
+        }
+        else if (location.equals("N6R")) {
+            return canAccess("N6", inventory)
+                    && inventory.contains(Items.GARLIC)
+                    && inventory.contains(Items.PURITY_STAFF)
+                    && (difficulty >= Difficulty.HARD || canSwim(inventory))
+                    && canGP(inventory);
+        }
+        else if (location.equals("N6G")) {
+            return canAccess("N6", inventory)
+                    && canSuperGP(inventory);
+        }
+        else if (location.equals("N6B")) {
+            return canAccess("N6", inventory)
+                    && canSuperGP(inventory)
+                    && (difficulty >= Difficulty.HARD
+                        || inventory.contains(Items.JUMP_BOOTS))
+                    && inventory.contains(Items.NIGHT_VISION_GOGGLES);
+        }
+        else if (location.equals("W1S")) {
+            return canAccess("W1", inventory) && (dayOnly || inventory.contains(Items.GARLIC));
+        }
+        else if (location.equals("W1R")) {
+            return canAccess("W1", inventory) && (!dayOnly || inventory.contains(Items.GARLIC));
+        }
+        else if (location.equals("W1G")) {
+            return canAccess("W1", inventory)
+                    && inventory.contains(Items.SPIKED_HELMET)
+                    && (!dayOnly || inventory.contains(Items.GARLIC));
+        }
+        else if (location.equals("W1B")) {
+            return canAccess("W1", inventory)
+                    && canSuperGP(inventory)
+                    && (canLift(inventory) || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)))
+                    && (!dayOnly || inventory.contains(Items.GARLIC));
+        }
+        else if (location.equals("W2S")) {
+            return canAccess("W2", inventory);
+        }
+        else if (location.equals("W2R")) {
+            return canAccess("W2", inventory)
+                    && inventory.contains(Items.WHEELS);
+        }
+        else if (location.equals("W2G")) {
+            return canAccess("W2", inventory)
+                    && inventory.contains(Items.WHEELS)
+                    && (inventory.contains(Items.FLUTE)
+                        || (difficulty >= Difficulty.HARD
+                            && canLift(inventory)
+                            && inventory.contains(Items.JUMP_BOOTS)));
+        }
+        else if (location.equals("W2B")) {
+            return canAccess("W2", inventory)
+                    && inventory.contains(Items.STONE_FOOT);
+        }
+        else if (location.equals("W3S")) {
+		/*
+		* Additional HARD Logic added for this check.
+		* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
+		* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
+		* then do a midair enemy bounce using the Paragoom.
+		* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
+		* Go across the 2nd set of pipes, then do the same midair enemy bounce using the Paragoom.
+		*/
+            return canAccess("W3", inventory)
+                && (canGP(inventory)
+					|| (difficulty >= Difficulty.HARD
+						&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
+                        && canLift(inventory)
+                        && inventory.contains(Items.JUMP_BOOTS)));
+        }
+        else if (location.equals("W3R")) {
+            return canAccess("W3", inventory)
+                    && inventory.contains(Items.BEANSTALK_SEEDS);
+        }
+        else if (location.equals("W3G")) {
+            return canAccess("W3", inventory)
+                    && canSwim(inventory);
+        }
+        else if (location.equals("W3B")) {
+			/*
+			* Added MERCILESS logic to this chest.
+			* From Main Area - Top Center, use a Throw + Dashjump wallclip to reach the top of the area on the left side. 
+			* Next, do a charge to the right and jump. You should screen scroll down and land on the 4th pipe. 
+			* Do a High Jump from the 4th pipe over to the 6th pipe, then do another High Jump from the 6th pipe to the 5th pipe. 
+			* If done right, walk off the left side of the 5th pipe, then Press Up. 
+			* If you are placed at the door that is underwater, press up again to enter this region, which is the Jellyfish Room.
+			* Note, a Soft Reset is required. Do this soft reset after making a suspend save before the Throw + Dashjump wallclip. 
+			* This execution skips the need for the Air Pump.
+			*/
+            return canAccess("W3", inventory)
+                    && (inventory.contains(Items.PUMP) && canSwim(inventory))
+					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(item.JUMP_BOOTS));
+        }
+        else if (location.equals("W4S")) {
+            return canAccess("W4", inventory);
+        }
+        else if (location.equals("W4R")) {
+			/*
+			* Additional MINOR GLITCHES Logic added for this chest.
+			* You can access this chest without a Glove or Helmet by using just Boots.
+			* Jump off 1 Firebot to get up the Ledge that leads to the Zombie Room - Below Third Platform check,
+			* then do a High Walljump to reach the Zombies section.
+			*/
+            return canAccess("W4", inventory)
+                    && (inventory.contains(Items.SPIKED_HELMET) 
+						|| (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("W4G")) {
+			/*
+			* Added MERCILESS Logic for this Chest.
+			* You can use Ladder Scrolling to skip the need for the Golden Glove and the Boots 
+			* when compared to MINOR GLITCHES.
+			*/
+            return canAccess("W4", inventory)
+                && (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
+                && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                && canSuperGP(inventory);
+        }
+        else if (location.equals("W4B")) {
+            return canAccess("W4", inventory);
+        }
+        else if (location.equals("W5S")) {
+            return canAccess("W5", inventory)
+                    && canSwim(inventory);
+        }
+        else if (location.equals("W5R")) {
+            return canAccess("W5", inventory)
+                    && canSwim(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("W5G")) {
+            return canAccess("W5", inventory)
+                    && canSwim(inventory)
+                    && canLift(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("W5B")) {
+            return canAccess("W5", inventory)
+                    && canSwim(inventory)
+                    && canLift(inventory)
+                    && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("W6S")) {
+            return canAccess("W6", inventory)
+                    && canGP(inventory);
+        }
+        else if (location.equals("W6R")) {
+            return canAccess("W6", inventory)
+                    && canSuperGP(inventory);
+        }
+        else if (location.equals("W6G")) {
+			/* 
+			* Added a check for MERCILESS difficulty for reaching the Green Chest Area (Platforming Challenge) without the Fire Extinguisher.
+			* This area is reached on MERCILESS difficulty via Ladder Scrolling after using I-Frames to pass the first 2 fires.
+			*/ 
+            return canAccess("W6", inventory)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                    && (difficulty >= Difficulty.MERCILESS || inventory.contains(Items.FIRE_EXTINGUISHER));
+        }
+        else if (location.equals("W6B")) {
+            return canAccess("W6", inventory)
+                    && inventory.contains(Items.RUST_SPRAY);
+        }
+        else if (location.equals("S1S")) {
+            return canAccess("S1", inventory)
+                    && canGP(inventory);
+        }
+        else if (location.equals("S1R")) {
+            return canAccess("S1", inventory)
+                    && inventory.contains(Items.BEANSTALK_SEEDS)
+                    && canGP(inventory);
+        }
+        else if (location.equals("S1G")) {
+            return canAccess("S1", inventory)
+                    && canSwim(inventory)
+                    && (inventory.contains(Items.FLUTE) || inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("S1B")) {
+            return canAccess("S1", inventory)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("S2S")) {
+            return canAccess("S2", inventory);
+        }
+        else if (location.equals("S2R")) {
+            return canAccess("S2", inventory)
+                    && canSwim(inventory)
+                    && canGP(inventory);
+        }
+        else if (location.equals("S2G")) {
+            return canAccess("S2", inventory)
+                    && canLift(inventory);
+        }
+        else if (location.equals("S2B")) {
+            return canAccess("S2", inventory)
+                    && inventory.contains(Items.PURITY_STAFF)
+                    && (difficulty >= Difficulty.S_HARD ||
+                    (inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET)))
+                    && canSwim(inventory);
+        }
+        else if (location.equals("S3S")) {
+            return canAccess("S3", inventory);
+        }
+        else if (location.equals("S3R")) {
+            return canAccess("S3", inventory)
+                    && inventory.contains(Items.BLUE_EYE_L)
+                    && inventory.contains(Items.BLUE_EYE_R);
+        }
+        else if (location.equals("S3G")) {
+            return canAccess("S3", inventory)
+                    && inventory.contains(Items.WIRE_WIZARD);
+        }
+        else if (location.equals("S3B")) {
+            return canAccess("S3", inventory)
+                    && inventory.contains(Items.WIRE_WIZARD)
+                    && inventory.contains(Items.GOLD_EYE_L)
+                    && inventory.contains(Items.GOLD_EYE_R)
+                    && inventory.contains(Items.SPIKED_HELMET)
+                    && inventory.contains(Items.GARLIC)
+                    && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                    && canSuperLift(inventory);
+        }
+        else if (location.equals("S4S")) {
+            return canAccess("S4", inventory);
+        }
+        else if (location.equals("S4R")) {
+            return canAccess("S4", inventory)
+                    && inventory.contains(Items.STONE_FOOT);
+        }
+        else if (location.equals("S4G")) {
+            return canAccess("S4", inventory)
+                    && inventory.contains(Items.STONE_FOOT)
+                    && canSuperSwim(inventory)
+                    && canSuperGP(inventory);
+        }
+        else if (location.equals("S4B")) {
+            return canAccess("S4", inventory)
+                    && inventory.contains(Items.RUST_SPRAY)
+                    && canGP(inventory);
+        }
+        else if (location.equals("S5S")) {
+            return canAccess("S5", inventory);
+        }
+        else if (location.equals("S5R")) {
+            return canAccess("S5", inventory)
+                    && inventory.contains(Items.JUMP_BOOTS)
+                    && canLift(inventory)
+                    && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
+        }
+        else if (location.equals("S5G")) {
+            return canAccess("S5", inventory)
+                    && inventory.contains(Items.DETONATOR);
+        }
+        else if (location.equals("S5B")) {
+            return canAccess("S5", inventory)
+                    && inventory.contains(Items.RUST_SPRAY)
+                    && inventory.contains(Items.JUMP_BOOTS)
+                    && canGP(inventory)
+                    && canLift(inventory);
+        }
+        else if (location.equals("S6S")) {
+            return canAccess("S6", inventory);
+        }
+        else if (location.equals("S6R")) {
+            return canAccess("S6", inventory)
+                    && inventory.contains(Items.JUMP_BOOTS)
+                    && (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET))
+                    && canLift(inventory);
+        }
+        else if (location.equals("S6G")) {
+            return canAccess("S6", inventory)
+                    && inventory.contains(Items.SCISSORS)
+                    && inventory.contains(Items.JUMP_BOOTS);
+        }
+        else if (location.equals("S6B")) {
+			/*
+			* Added a check for MERCILESS difficulty on this chest.
+			* Wrong Warp from the bottom outside area to enter the Blue Chest Room.
+			* Note, a soft reset is required for this to work, and this wrong warp only works during the day.
+			* The soft reset can occur either immediately before entering the stage or after a suspend save.
+			*/
+            return canAccess("S6", inventory)
+				&& inventory.contains(Items.JUMP_BOOTS)
+                && ((inventory.contains(Items.GONG) && inventory.contains(Items.SCISSORS) && canSuperGP(inventory) && canLift(inventory))
+					|| (dayOnly && difficulty >= Difficulty.MERCILESS));
+        }
+        else if (location.equals("E1S")) {
+            return canAccess("E1", inventory);
+        }
+        else if (location.equals("E1R")) {
+            return canAccess("E1", inventory)
+                    && inventory.contains(Items.STONE_FOOT)
+                    && (canGP(inventory) || (canSuperSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)));
+        }
+        else if (location.equals("E1G")) {
+		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
+            return canAccess("E1", inventory)
+                    && inventory.contains(Items.STONE_FOOT)
+					&& (inventory.contains(Items.JUMP_BOOTS) || Difficulty = Difficulty.S_HARD);
+        }
+        else if (location.equals("E1B")) {
+			/*
+			* Added MERCILESS logic for this chest. 
+			* Have a Spearhead get clipped into the wall opposite the spike near the Blue Chest.
+			* Once it gets unstunned, hit it such that it doesn't clip out of the wall.
+			* Lift the other Spearhead and then do a Midair Enemy Bounce into the Spearhead that is clipped while it's facing right.
+			* This will damage boost you and allow you to get enough height to reach the Blue Chest.
+			*/
+            return canAccess("E1", inventory)
+                && ((inventory.contains(Items.DETONATOR))
+					|| (canLift(inventory) && inventory.contains(ITEMS.JUMP_BOOTS) && inventory.contains(ITEMS.SPIKED_HELMET)));
+        }
+        else if (location.equals("E2S")) {
+            return canAccess("E2", inventory);
+        }
+        else if (location.equals("E2R")) {
+            return canAccess("E2", inventory)
+                    && canLift(inventory);
+        }
+        else if (location.equals("E2G")) {
+            return canAccess("E2", inventory)
+                    && inventory.contains(Items.PURITY_STAFF)
+                    && canSwim(inventory);
+        }
+        else if (location.equals("E2B")) {
+            return canAccess("E2", inventory)
+                    && (dayOnly || canSuperSwim(inventory));
+        }
+        else if (location.equals("E3S")) {
+            return canAccess("E3", inventory)
+                    && (difficulty >= Difficulty.S_HARD || canGP(inventory));
+        }
+        else if (location.equals("E3R")) {
+            return canAccess("E3", inventory)
+                    && canLift(inventory);
+        }
+        else if (location.equals("E3G")) {
+            return canAccess("E3", inventory)
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
+        }
+        else if (location.equals("E3B")) {
+            return canAccess("E3", inventory)
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
+        }
+        else if (location.equals("E4S")) {
+            return canAccess("E4", inventory);
+        }
+        else if (location.equals("E4R")) {
+            return canAccess("E4", inventory)
+                    && inventory.contains(Items.GARLIC);
+        }
+        else if (location.equals("E4G")) {
+            return canAccess("E4", inventory)
+                    && (difficulty >= Difficulty.S_HARD
+                    || dayOnly
+                    || (inventory.contains(Items.JUMP_BOOTS)));
+        }
+        else if (location.equals("E4B")) {
+            return canAccess("E4", inventory)
+                    && inventory.contains(Items.DETONATOR)
+                    && inventory.contains(Items.JUMP_BOOTS);
+        }
+        else if (location.equals("E5S")) {
+            return canAccess("E5", inventory);
+        }
+        else if (location.equals("E5R")) {
+            return canAccess("E5", inventory)
+                    && inventory.contains(Items.WARP_REMOTE);
+        }
+        else if (location.equals("E5G")) {
+            return canAccess("E5", inventory)
+                    && (inventory.contains(Items.WARP_REMOTE) || (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD)))
+                    && canLift(inventory);
+        }
+        else if (location.equals("E5B")) {
+            /*
+			* Added MERCILESS logic for this chest. 
+			* You can do a Double Bear Bounce from the starting area to reach this region. 
+			* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+			* The Boots and Golden Glove are both required to perform this execution.
+			*/ 
+            return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+				|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+					&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+        }
+        else if (location.equals("E6S")) {
+            return canAccess("E6", inventory)
+                    && (difficulty >= Difficulty.S_HARD || canLift(inventory));
+        }
+        else if (location.equals("E6R")) {
+            return canAccess("E6", inventory)
+                    && inventory.contains(Items.FIRE_EXTINGUISHER)
+                    && canLift(inventory)
+                    && canGP(inventory);
+        }
+        else if (location.equals("E6G")) {
+            return canAccess("E6", inventory)
+                    && inventory.contains(Items.JACKHAMMER)
+                    && canLift(inventory);
+        }
+        else if (location.equals("E6B")) {
+            return canAccess("E6", inventory)
+                    && inventory.contains(Items.PICKAXE)
+                    && canLift(inventory);
+        }
+        else if (location.equals("E7S")) {
+            return canAccess("E7", inventory);
+        }
+        else if (location.equals("E7R")) {
+            return canAccess("E7", inventory)
+                    && inventory.contains(Items.VALVE)
+                    && canSuperLift(inventory);
+        }
+        else if (location.equals("E7G")) {
+            return canAccess("E7", inventory)
+                    && inventory.contains(Items.VALVE)
+                    && canLift(inventory);
+        }
+        else if (location.equals("E7B")) {
+            return canAccess("E7", inventory)
+                    && inventory.contains(Items.DEMON_BLOOD);
+        }
+        return false;
     }
 
     /**
-     * Reorder a section of rom (typically a table) to match the reordered world map.
+     * Check if Wario can get a given key with his current inventory.
      *
-     * @param worldMap  list of level IDs in the order they appear in-game
-     * @param entrySize size of each block of data to move
-     * @param idx       index of the first byte of the first block to move
+     * @param keyLocations  List of levels with their placed keys
+     * @param location      Three-character location code of the key to check (e.g. "E3R")
+     * @param daytime       True if it's daytime
+     * @param inventory     Wario's inventory
+     * @return true if the key can be acquired
      */
-    private static byte[] scrambleLevels(byte[] romBytes, Integer[] worldMap, int entrySize, int idx) {
-        return scrambleLevels(romBytes,worldMap,entrySize,idx,new int[0]);
+    private static boolean canAccessKey(List<Level> keyLocations, String location, boolean daytime, List<Integer> inventory) {
+        if (keyLocations == null) {
+            return true;
+        }
+        int lvl = "NWSE".indexOf(location.charAt(0))*6 + Integer.parseInt("" + location.charAt(1))-1;
+        int idx = "SRGB".indexOf(location.charAt(2));
+        Level level = keyLocations.get(lvl);
+        KeyLocation keyLoc = level.getLocation(idx);
+        if (keyLoc == null) {
+            return true;
+        }
+
+        return canAccessKeyLocation(location.substring(0,2),keyLoc.getRegion(),keyLoc.getSubLocation(),daytime,idx,inventory);
     }
 
     /**
-     * Reorder a section of rom (typically a table) to match the reordered world map.
+     * Check if Wario can access a potential key location with his current inventory.
      *
-     * @param worldMap  list of level IDs in the order they appear in-game
-     * @param entrySize size of each block of data to move
-     * @param idx       index of the first byte of the first block to move
-     * @param skips     a list of indexes to skip; blocks with these indexes will be passed over as if they didn't exist.
+     * @param level     Two-character level code (e.g. "E3")
+     * @param region    Which region the location exists in (identified by the number of its top-left sector
+     * @param location  In a region, which sub-location points to the key
+     * @param daytime   True if it's daytime
+     * @param keyColor  0-3, representing the color of the key Wario is looking for
+     * @param inventory Wario's current inventory
+     * @return True if the key location can be reached
      */
-    private static byte[] scrambleLevels(byte[] romBytes, Integer[] worldMap, int entrySize, int idx, int[] skips) {
-        // extract each block to move
-        int offset = 0;
-        byte[][] levelData = new byte[worldMap.length][entrySize];
-        for (int i = 0; i < worldMap.length*entrySize; i++) {
-            if (i % entrySize == 0) {
-                for (int skip : skips) {
-                    if ((i + offset) / entrySize == skip) {
-                        offset += entrySize;
-                    }
+    private static boolean canAccessKeyLocation(String level, int region, int location, boolean daytime, int keyColor, List<Integer> inventory) {
+        if (level.equals("N1")) {
+            if (region == 0x2) {
+                return inventory.contains(Items.POWDER) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x3) {
+                if (location == 2) {
+                    return true;
+                }
+                else if (location == 0){
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return difficulty >= Difficulty.S_HARD
+                            || inventory.contains(Items.JUMP_BOOTS);
                 }
             }
-            int adjustIdx = i + offset;
-            levelData[i/entrySize][i%entrySize] = romBytes[idx+adjustIdx];
-        }
-
-        offset = 0;
-
-        // write the blocks back into memory in the correct order
-        for (int i = 0; i < worldMap.length*entrySize; i++) {
-            if (i % entrySize == 0) {
-                for (int skip : skips) {
-                    if ((i + offset) / entrySize == skip) {
-                        offset += entrySize;
-                    }
+            else if (region == 0x6) {
+                return inventory.contains(Items.POWDER) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return canSuperGP(inventory) ||
+                            (difficulty >= Difficulty.HARD &&
+                                    canLift(inventory) &&
+                                    inventory.contains(Items.JUMP_BOOTS));
+                }
+                else {
+                    return true;
                 }
             }
-            int adjustIdx = i + offset;
-            romBytes[idx+adjustIdx] = levelData[worldMap[i/entrySize]][i%entrySize];
-        }
-        return romBytes;
-    }
-
-    /**
-     * Reassigns text level names to their correct levels.
-     *
-     * @param worldMap List of level IDs, in the order they appear on the map
-     * @param idx      Index of first byte of first string to reorder
-     */
-    private static byte[] scrambleHintText(byte[] romBytes, Integer[] worldMap, int idx) {
-        return scrambleHintText(romBytes,worldMap,idx,idx);
-    }
-
-    /**
-     * Reassigns text level names to their correct levels.
-     *
-     * @param worldMap List of level IDs, in the order they appear on the map
-     * @param idx      Index of first byte of first string to reorder
-     * @param outIdx   Index of where to rewrite level names
-     */
-    private static byte[] scrambleHintText(byte[] romBytes, Integer[] worldMap, int idx, int outIdx) {
-        // first, decompress level text as one big string
-        byte[] levelText = new byte[64*16];
-        int offset = 0;
-        int textIdx = 0;
-        while (textIdx < levelText.length) {
-            int len = (romBytes[idx+offset] & 0xff) - 0x80;
-            offset++;
-            for (int i = 0; i < len; i++) {
-                levelText[textIdx] = (byte)(romBytes[idx+offset] & 0xff);
-                textIdx++;
-                offset++;
+            else if (region == 0xd) {
+                return canGP(inventory) ||
+                        (difficulty > Difficulty.EASY && inventory.contains(Items.GARLIC));
             }
-            len = romBytes[idx+offset] & 0xff;
-            offset++;
-            offset++;
-            for (int i = 0; i < len; i++) {
-                levelText[textIdx] = (byte)0x7f;
-                textIdx++;
+            else if (region == 0x14) {
+                return canLift(inventory) && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
+            }
+            else if (region == 0x17) {
+                return canSwim(inventory);
             }
         }
-
-        // swap level names around
-        int[] skips = {0, 1, 8, 15, 22}; // empty spaces where N7, W7, and S7 would be
-        levelText = scrambleLevels(levelText,worldMap,32,0, skips);
-
-        // compress level names again
-        List<Byte> compressedNames = new Vector<>();
-        textIdx = 0;
-        while (textIdx < levelText.length) {
-            // find three or more spaces in a row to signify end of string
-            int scanIdx = textIdx;
-            while (scanIdx < levelText.length - 2 && (levelText[scanIdx] != 0x7f || levelText[scanIdx+1] != 0x7f || levelText[scanIdx+2] != 0x7f)) {
-                scanIdx++;
-            }
-            // write string length followed by string
-            int len = scanIdx - textIdx;
-            compressedNames.add((byte)(0x80 + (len & 0xff)));
-            for (int i = 0; i < len; i++) {
-                compressedNames.add(levelText[textIdx]);
-                textIdx++;
-            }
-            // determine number of spaces between this string and next
-            scanIdx = textIdx;
-            while (scanIdx < levelText.length && levelText[scanIdx] == 0x7f) {
-                scanIdx++;
-            }
-            len = scanIdx - textIdx;
-            compressedNames.add((byte)len);
-            compressedNames.add((byte)0x7f);
-            textIdx = scanIdx;
-        }
-        // persist recompressed text to the working copy of the ROM
-        for (int i = 0; i < compressedNames.size(); i++) {
-            romBytes[outIdx + i] = compressedNames.get(i);
-        }
-        if (idx != outIdx) {
-            //add ending tag
-            romBytes[outIdx + compressedNames.size()] = (byte) 0x00;
-            romBytes[outIdx + compressedNames.size() + 1] = (byte) 0x7f;
-        }
-
-        return romBytes;
-    }
-
-    /**
-     * Rotate level background palettes by the given amounts.
-     */
-    private static byte[] shuffleBGPalettes(byte[] romBytes, int[] switches) {
-        // c0b1b = start of table, +C8000
-        int tableIdx = 0xc0b1b;
-        int palIdx = 0xc8000;
-        for (int i = 0; i < switches.length; i += 8) {
-            int offset = ((romBytes[tableIdx+(i/4)+1] & 0xff) << 8) + (romBytes[tableIdx+(i/4)] & 0xff);
-            for (int j = 0; j < 64; j += 8) {
-                romBytes = swapColors(romBytes, palIdx + offset + j, switches[i+j/8], false);
-            }
-        }
-
-        // clean up a few colors to avoid ugly jagged edges
-        int[][] cleanups = {
-                {0x0,1,0,0,0},
-                {0x1,1,0,0,0},
-                {0x8,1,0,7,2},
-                {0xd,1,0,7,2},
-                {0xe,6,0,4,0},
-                {0xf,1,0,6,2},
-                {0x13,1,0,4,0},
-                {0x14,0,1,4,1},
-                {0x14,2,2,1,0},
-                {0x14,2,3,1,1},
-                {0x1b,2,1,4,0},
-                {0x1f,6,0,3,2},
-                {0x1f,7,0,1,2},
-                {0x1f,4,0,1,0},
-                {0x20,4,0,3,0},
-                {0x2b,4,0,7,0},
-                {0x25,2,0,1,0},
-                {0x26,1,0,4,0},
-                {0x32,4,0,6,2},
-                {0x35,2,0,1,1},
-                {0x3a,0,1,4,1},
-                {0x3b,2,1,4,0},
-                {0x3f,4,0,7,0},
-                {0x47,6,0,4,0},
-                {0x49,6,0,3,2},
-                {0x49,7,0,1,2},
-                {0x49,4,0,1,0},
-                {0x4a,4,0,3,0},
-                {0x4b,4,0,3,0},
-                {0x4c,4,0,3,0},
-                {0x50,6,0,4,1},
-                {0x50,6,1,7,0},
-                {0x54,2,0,1,0},
-                {0x64,2,0,1,1},
-                {0x6c,4,0,7,0},
-                {0x6d,4,0,7,0},
-                {0x6e,4,0,7,0},
-                {0x6f,4,0,7,0}
-        };
-
-        for (int[] cleanup : cleanups) {
-            int palSet = cleanup[0];
-            int targetPal = cleanup[1];
-            int targetCol = cleanup[2];
-            int srcPal = cleanup[3];
-            int srcCol = cleanup[4];
-
-            int setOffset = ((romBytes[tableIdx+(palSet*2)+1] & 0xff) << 8) + (romBytes[tableIdx+(palSet*2)] & 0xff);
-            int targetOffset = setOffset + targetPal*8 + targetCol*2;
-            int srcOffset = setOffset + srcPal*8 + srcCol*2;
-
-            romBytes[palIdx + targetOffset] = romBytes[palIdx + srcOffset];
-            romBytes[palIdx + targetOffset + 1] = romBytes[palIdx + srcOffset + 1];
-        }
-
-        return romBytes;
-    }
-
-    /**
-     * Apply randomized colors to title screen.
-     */
-    private static byte[] shuffleTitleBGPalettes(byte[] romBytes, int[] colors) {
-        int tableIdx = 0x5002;
-        // rotate four key palettes; build the remaining four from those palettes
-        int[] entriesToShuffle = {1, 4, 5, 7};
-        for (int i = 0; i < entriesToShuffle.length; i++) {
-            romBytes = swapColors(romBytes, tableIdx + entriesToShuffle[i]*8, colors[i], false);
-        }
-        // treat 2 and 3 same as 1 and 4
-        romBytes = swapColors(romBytes, tableIdx + 2*8, colors[0], false);
-        romBytes = swapColors(romBytes, tableIdx + 3*8, colors[1], false);
-
-        int[] entriesToBuild = {0, 2, 3, 6};
-        int[][][] copies = {
-                {{5,0},{-1,-1},{4,2},{-1,-1}},
-                {{4,2},{-1,-1},{-1,-1},{-1,-1}},
-                {{-1,-1},{-1,-1},{4,2},{-1,-1}},
-                {{-1,-1},{5,1},{7,2},{-1,-1}}
-        };
-        for (int i = 0; i < entriesToBuild.length; i++) {
-            int pal = entriesToBuild[i];
-            for (int j = 0; j < copies[i].length; j++) {
-                int[] copy = copies[i][j];
-                if (copy[0] < 0) continue;
-                romBytes[tableIdx + pal*8 + j*2] = romBytes[tableIdx + copy[0]*8 + copy[1]*2];
-                romBytes[tableIdx + pal*8 + j*2 + 1] = romBytes[tableIdx + copy[0]*8 + copy[1]*2 + 1];
-            }
-        }
-
-        // this is weird, but we need to edit one sprite's color to not stand out (OBJ 2.2)
-        int titleSprIdx = 0x5042;
-        romBytes[titleSprIdx + 2*8 + 2*2] = romBytes[tableIdx + 2*8 + 2*2];
-        romBytes[titleSprIdx + 2*8 + 2*2 + 1] = romBytes[tableIdx + 2*8 + 2*2 + 1];
-
-        // also edit intro palettes to match
-        int introIdx = 0x4f82;
-        for (int i = 0; i < 20; i++) {
-            romBytes[introIdx + i*2] = romBytes[tableIdx];
-            romBytes[introIdx + i*2 + 1] = romBytes[tableIdx + 1];
-        }
-        for (int i = 0; i < 24; i++) {
-            romBytes[introIdx + 40 + i] = romBytes[tableIdx + 40 + i];
-        }
-
-        return romBytes;
-    }
-
-    /**
-     * Apply randomized colors to misc screens.
-     */
-    private static byte[] shuffleOtherBGPalettes(byte[] romBytes, int[] colors) {
-        int[] indexes = {
-                0x1ca1cf, // golf lobby
-                0x1ca08f, // golf
-                0x1f4182, // pause
-                0x1e0378, // results 1
-                0xd50a4,  // results 2
-                0x1f628c // save
-        };
-
-        for (int i = 0; i < indexes.length; i++) {
-            int idx = indexes[i];
-            for (int j = 0; j < 8; j++) {
-                romBytes = swapColors(romBytes, idx + j*8, colors[i],false);
-            }
-        }
-
-        return romBytes;
-    }
-
-    /**
-     * Rotate sprite palettes by the given amounts.
-     */
-    private static byte[] shuffleObjPalettes(byte[] romBytes, int[] colors) {
-        int idx = 0x65251;
-        int offset = 0;
-        int colorIdx = 8;
-        while (colorIdx < colors.length) {
-            offset += 9; // skip object gfx pointers
-            // look for terminating pointer in object list
-            while ((romBytes[idx+offset] & 0xff) != 0xff || (romBytes[idx+offset+1] & 0xff) != 0xff) {
-                offset += 2;
-            }
-            offset += 2; // now we're looking at object palettes!
-            for (int i = 0; i < 4; i++) {
-                romBytes = swapColors(romBytes,idx+offset,colors[colorIdx], false);
-                offset += 8;
-                colorIdx++;
-            }
-        }
-
-        // rotate rudy's colors
-        romBytes = swapColors(romBytes,0xdb000,colors[1],false);
-        romBytes = swapColors(romBytes,0xdb008,colors[1],false);
-        romBytes = swapColors(romBytes,0xdb010,colors[1],false);
-        romBytes = swapColors(romBytes,0xdb018,colors[1],false);
-        romBytes = swapColors(romBytes,0xdb020,colors[2],false);
-        romBytes = swapColors(romBytes,0xdb028,colors[3],false);
-        romBytes = swapColors(romBytes,0xdb030,colors[4],false);
-        romBytes = swapColors(romBytes,0xdb038,colors[5],false);
-        romBytes = swapColors(romBytes,0xdb040,colors[6],false);
-        romBytes = swapColors(romBytes,0xdb048,colors[1],false);
-        romBytes = swapColors(romBytes,0xdb050,colors[7],false);
-        romBytes = swapColors(romBytes,0xdb058,colors[7],false);
-        romBytes = swapColors(romBytes,0xdb060,colors[7],false);
-
-        romBytes = swapColors(romBytes,0x4d01b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d023,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d02b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d033,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d03b,colors[2],false);
-        romBytes = swapColors(romBytes,0x4d043,colors[3],false);
-
-        romBytes = swapColors(romBytes,0x4d04b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d053,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d05b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d063,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d06b,colors[2],false);
-        romBytes = swapColors(romBytes,0x4d073,colors[3],false);
-
-        romBytes = swapColors(romBytes,0x4d07b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d083,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d08b,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d093,colors[1],false);
-        romBytes = swapColors(romBytes,0x4d09b,colors[2],false);
-        romBytes = swapColors(romBytes,0x4d0a3,colors[3],false);
-
-        // need to clean up a few colors for rudy
-        romBytes[0xdb020] = romBytes[0xdb000];
-        romBytes[0xdb021] = romBytes[0xdb001];
-        romBytes[0xdb024] = romBytes[0xdb02c];
-        romBytes[0xdb025] = romBytes[0xdb02d];
-        romBytes[0xdb028] = romBytes[0xdb000];
-        romBytes[0xdb029] = romBytes[0xdb001];
-
-        romBytes[0x4d03b] = romBytes[0x4d01b];
-        romBytes[0x4d03c] = romBytes[0x4d01c];
-        romBytes[0x4d03f] = romBytes[0x4d047];
-        romBytes[0x4d040] = romBytes[0x4d048];
-        romBytes[0x4d043] = romBytes[0x4d01b];
-        romBytes[0x4d044] = romBytes[0x4d01c];
-
-        romBytes[0x4d06b] = romBytes[0x4d04b];
-        romBytes[0x4d06c] = romBytes[0x4d04c];
-        romBytes[0x4d06f] = romBytes[0x4d077];
-        romBytes[0x4d070] = romBytes[0x4d078];
-        romBytes[0x4d073] = romBytes[0x4d04b];
-        romBytes[0x4d074] = romBytes[0x4d04c];
-
-        romBytes[0x4d09b] = romBytes[0x4d07b];
-        romBytes[0x4d09c] = romBytes[0x4d07c];
-        romBytes[0x4d09f] = romBytes[0x4d0a7];
-        romBytes[0x4d0a0] = romBytes[0x4d0a8];
-        romBytes[0x4d0a3] = romBytes[0x4d07b];
-        romBytes[0x4d0a4] = romBytes[0x4d07c];
-
-        return romBytes;
-    }
-
-    /**
-     * Apply colors to the key/chest palettes.
-     */
-    private static byte[] shuffleChestPalettes(byte[] romBytes, int[] colors) {
-        for (int i = 0; i < 4; i++) {
-            float hue = (float)colors[i] / 100000f;
-            float sat = (float)colors[i+4] / 100000f;
-            float val = (float)colors[i+8] / 100000f;
-
-            byte[] main = HSVtoGBC(hue,sat,val);
-
-            float hsat = sat/3f;
-            float hval = 0.97f;
-
-            byte[] highlight = HSVtoGBC(hue,hsat,hval);
-
-            float oval = val * 0.2857f;
-
-            byte[] outline = HSVtoGBC(hue,sat,oval);
-
-            byte[] palette = {highlight[0],highlight[1],main[0],main[1],outline[0],outline[1]};
-            int idx = 0x64fc9 + (i * 0xe) + 0x2;
-            for (int j = 0; j < palette.length; j++) {
-                romBytes[idx + j] = palette[j];
-            }
-        }
-
-        // set menu key colors to match real key colors
-        romBytes[0x1f41de] = romBytes[0x64fcd];
-        romBytes[0x1f41df] = romBytes[0x64fce];
-        romBytes[0x1e03aa] = romBytes[0x64fcd];
-        romBytes[0x1e03ab] = romBytes[0x64fce];
-        romBytes[0x1e042a] = romBytes[0x64fcd];
-        romBytes[0x1e042b] = romBytes[0x64fce];
-
-        romBytes[0x1f41e0] = romBytes[0x64fdb];
-        romBytes[0x1f41e1] = romBytes[0x64fdc];
-        romBytes[0x1e03ac] = romBytes[0x64fdb];
-        romBytes[0x1e03ad] = romBytes[0x64fdc];
-        romBytes[0x1e042c] = romBytes[0x64fdb];
-        romBytes[0x1e042d] = romBytes[0x64fdc];
-
-        romBytes[0x1f41e6] = romBytes[0x64fe9];
-        romBytes[0x1f41e7] = romBytes[0x64fea];
-        romBytes[0x1e03b2] = romBytes[0x64fe9];
-        romBytes[0x1e03b3] = romBytes[0x64fea];
-        romBytes[0x1e0432] = romBytes[0x64fe9];
-        romBytes[0x1e0433] = romBytes[0x64fea];
-
-        romBytes[0x1f41e8] = romBytes[0x64ff7];
-        romBytes[0x1f41e9] = romBytes[0x64ff8];
-        romBytes[0x1e03b4] = romBytes[0x64ff7];
-        romBytes[0x1e03b5] = romBytes[0x64ff8];
-        romBytes[0x1e0434] = romBytes[0x64ff7];
-        romBytes[0x1e0435] = romBytes[0x64ff8];
-
-        return romBytes;
-    }
-
-    /**
-     * Converts a HSV color to GBC palette format.
-     */
-    private static byte[] HSVtoGBC(float hue, float sat, float val) {
-        int color = Color.HSBtoRGB(hue, sat, val);
-        int b = (color & 0xFF) >>> 3;
-        int g = (color & 0xFF00) >>> 11;
-        int r = (color & 0xFF0000) >>> 19;
-        color = (b << 10) + (g << 5) + r;
-        byte[] retBytes = new byte[2];
-        retBytes[0] = (byte)(color & 0xff);
-        retBytes[1] = (byte)((color & 0xff00) >>> 8);
-        return retBytes;
-    }
-
-    /**
-     * Rotates a color palette at the given index.
-     */
-    private static byte[] swapColors(byte[] romBytes, int idx, int swap, boolean grayKey) {
-        for (int i = 0; i < 8; i += 2) {
-            int pal = ((romBytes[idx+i+1] & 0xff) << 8) + (romBytes[idx+i] & 0xff);
-            int b = (pal & 0x7c00) >>> 10;
-            int g = (pal & 0x3e0) >>> 5;
-            int r = (pal & 0x1f);
-
-            float[] hsv = Color.RGBtoHSB(r*8, g*8, b*8, null);
-            if (grayKey) {
-                hsv[0] = 0.7778f;
-                if (i == 2) {
-                    hsv[1] = 0.32f;
-                    hsv[2] = 0.97f;
+        else if (level.equals("N2")) {
+            if (region == 0x1) {
+                if (location == 2) {
+                    return canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET);
                 }
-                else if (i == 4) {
-                    hsv[1] = 1.0f;
-                    hsv[2] = 0.5f;
+                else if (location == 0) {
+                    return !daytime || inventory.contains(Items.GARLIC);
+                }
+                else {
+                    return true;
                 }
             }
-            pal = Color.HSBtoRGB(hsv[0] + (float)(swap)/100000.0f,hsv[1],hsv[2]);
-            b = (pal & 0xFF) >>> 3;
-            g = (pal & 0xFF00) >>> 11;
-            r = (pal & 0xFF0000) >>> 19;
-
-            pal = (b << 10) + (g << 5) + r;
-            romBytes[idx+i] = (byte)(pal & 0xff);
-            romBytes[idx+i+1] = (byte)((pal & 0xff00) >>> 8);
+            else if (region == 0x5) {
+                return true;
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return difficulty >= Difficulty.S_HARD
+                            || inventory.contains(Items.JUMP_BOOTS)
+                            || inventory.contains(Items.FLUTE);
+                }
+                else {
+                    return difficulty > Difficulty.EASY
+                            || inventory.contains(Items.JUMP_BOOTS)
+                            || inventory.contains(Items.FLUTE)
+                            || canSuperGP(inventory);
+                }
+            }
+            else if (region == 0x8) {
+                return canSuperGP(inventory) && inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x14) {
+                return canSuperGP(inventory);
+            }
+            else if (region == 0x1c) {
+                if (location == 0) {
+                    return canGP(inventory)
+                            && ((!daytime && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)))
+                                || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
+                }
+                else {
+                    return ((!daytime && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE)))
+                            || (canSuperGP(inventory) && inventory.contains(Items.GARLIC)));
+                }
+            }
         }
-        return romBytes;
-    }
-
-    /**
-     * Shuffle pointers to golf courses.
-     */
-    private static byte[] shuffleGolf(byte[] romBytes, Integer[] order) {
-        int golfTableIdx = 0x1c8ac3;
-        return scrambleLevels(romBytes, order,0xa, golfTableIdx);
-    }
-
-    /**
-     * Apply logic patch and shuffle keys.
-     */
-    private static byte[] keyShufflePatch(byte[] romBytes, Level[] keyLocations) throws IOException {
-        romBytes = applyPatch(romBytes, "keyshuffle/keyShufflePatch.json");
-
-        // we need to move some objects off of palette 2 and move keys onto palette 2
-        romBytes = editPalettes(romBytes,0x63, 0x95,0x4000, 2, 0); // music coin
-        romBytes = editPalettes(romBytes,0x63, 0x1ef, 0x23c,3, 2); // key
-        romBytes = editPalettes(romBytes,0x3, 0x1287, 0x1499,2, 0); // dust, stars, etc
-        romBytes = editPalettes(romBytes,0x60, 0x23, 0x241,2, 0); // coin
-        romBytes = editPalettes(romBytes,0x60, 0x296, 0x563,2, 0); // coin
-        romBytes = editPalettes(romBytes,0x60, 0xefb, 0x136b,2, 3); // enemy projectiles
-        romBytes = editPalettes(romBytes,0x61, 0xb04, 0xeea,2, 3); // enemy projectiles
-        romBytes = editPalettes(romBytes,0x62, 0x272f, 0x2894,2, 3); // enemy projectiles
-
-        // start at level pointer table
-        int levelTableIdx = 0xc00be;
-        for (int levelNum = 0; levelNum < 25; levelNum++) {
-            Level level = keyLocations[levelNum];
-            for (int levelMod = 0; levelMod < 8; levelMod++) {
-                // compute index in level pointer table, get level metadata
-                int levelIdx = levelNum * 8 + levelMod;
-                int levelAddr = romBytes[levelTableIdx + levelIdx*2 + 1] & 0xff;
-                levelAddr <<= 8;
-                levelAddr += romBytes[levelTableIdx + levelIdx*2] & 0xff;
-                levelAddr -= 0x4000;
-                levelAddr += 0xc0000;
-                // get ROM bank to examine and address of level object data in that bank
-                int bank = romBytes[levelAddr+2] & 0xff;
-                int objAddr = romBytes[levelAddr+4] & 0xff;
-                objAddr <<= 8;
-                objAddr += romBytes[levelAddr+3] & 0xff;
-                objAddr -= 0x4000;
-                objAddr += bank * 0x4000;
-                // scan through rle-compressed level data, replace keys and coins as we find them
-                int objOffset = 0;
-                int objIdx = 0;
-                int locIdx = 0;
-                while (objIdx < 0x10 * 0x0a * 0x30) {
-                    // check first byte to see if the next bytes are to be expanded or not
-                    byte check = (byte)(romBytes[objAddr+objOffset] & 0xff);
-                    if ((check & 0x80) == 0) {
-                        // next byte is to be expanded, so advance the object index appropriately
-                        objOffset += 2;
-                        objIdx += check * 2;
+        else if (level.equals("N3")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else if (location == 2) {
+                    return difficulty >= Difficulty.HARD || (inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL));
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    // this location doesn't spawn until the seeds are planted
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else {
+					/*
+					* Added MERCILESS logic for this check.
+					* 1. Have a Teruteru land on Wario and take it to the area under Mad Scienstein.
+					* 2. Walk to the left of the Seeing Eye Door to release the Teruteru.
+					* 3. Align with the proper pixel and do a dashjump wallclip up to near Mad Scienstein. 
+					*		=> This is the last point where you can make a suspend save before committing to an attempt at this.
+					* 4. Have the Teruteru land on Wario again.
+					* 5. Jump repeatedly to reach the top of the level while the Teruteru is still on Wario.
+					* 6. Walk off the right side and continue holding Left to release the Teruteru and reach the Overhang with the pipe.
+					*		=> This execution skips the need for any powerups for this check.
+					*/
+                    return inventory.contains(Items.BEANSTALK_SEEDS)
+                        || ((difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+						|| (difficulty >= Difficulty.MERCILESS));
+                }
+            }
+            else if (region == 0x14) {
+				/*
+				* Added MERCILESS logic for this check.
+				* 1. Have a Teruteru land on Wario and take it to the area under Mad Scienstein.
+				* 2. Walk to the left of the Seeing Eye Door to release the Teruteru.
+				* 3. Align with the proper pixel and do a dashjump wallclip up to near Mad Scienstein. 
+				*		=> This is the last point where you can make a suspend save before committing to an attempt at this.
+				* 4. Have the Teruteru land on Wario again.
+				* 5. Jump repeatedly to reach the top of the level while the Teruteru is still on Wario.
+				* 6. Walk off the right side and continue holding Left to release the Teruteru and reach the Overhang with the pipe.
+				*		=> This execution skips the need for any powerups for this check.
+				*/
+                return inventory.contains(Items.BEANSTALK_SEEDS)
+                        || ((difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+						|| (difficulty >= Difficulty.MERCILESS));
+            }
+            else if (region == 0x16) {
+                return canGP(inventory);
+            }
+            else if (region == 0x19) {
+                return canSwim(inventory);
+            }
+            else if (region == 0x1a) {
+                return inventory.contains(Items.BLUE_CHEMICAL) && inventory.contains(Items.RED_CHEMICAL);
+            }
+        }
+        else if (level.equals("N4")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return canSwim(inventory)
+                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else {
+                    return canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS);
+                }
+            }
+            else if (region == 0xa) {
+                return canSuperSwim(inventory);
+            }
+            else if (region == 0x12) {
+                return inventory.contains(Items.PUMP) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.GARLIC) && canLift(inventory)
+                        && (canSwim(inventory) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+            }
+            else if (region == 0x16) {
+                return inventory.contains(Items.GARLIC) && (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.PUMP);
+            }
+            else if (region == 0x1d) {
+                return canSwim(inventory) || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+            }
+        }
+        else if (level.equals("N5")) {
+            if (region == 0x1) {
+                if (location == 1) {
+				/*
+				* Added MERCILESS logic to this check. Use Water Scrolling to screen wrap upwards.
+				* You can then go across the top to reach this check without Garlic.
+				* This only works at night since the water level is higher at night.
+				*/
+                    return (inventory.contains(Items.GARLIC)
+						|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory)));
+                }
+                else if (location == 3) {
+                    if (daytime) {
+                        return canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS);
                     }
                     else {
-                        // next bytes are a literal string, we need to be on the lookout for keys and coins
-                        check &= 0x7f;
-                        objOffset++;
-                        for (int j = 0; j < check; j++) {
-                            // check both first and last nybbles for keys/coins (2 and 3) - when found, replace with a key if we find a key that matches in the level list, or a coin otherwise
-                            byte objByte = (byte)(romBytes[objAddr+objOffset] & 0xff);
-                            if ((objByte & 0xf0) == 0x20 || (objByte & 0xf0) == 0x30) {
-                                romBytes[objAddr+objOffset] = (byte)((objByte & 0x0f) + 0x30);
-                                for (int key = 0; key < 4; key++) {
-                                    KeyLocation loc = level.getLocation(key);
-                                    if (loc.getY() * 0xa0 + loc.getX() == objIdx) {
-                                        romBytes[objAddr+objOffset] = (byte)((objByte & 0x0f) + 0x20);
-                                        break;
-                                    }
-                                }
-                                locIdx++;
-                            }
-                            objIdx++;
-                            if ((objByte & 0x0f) == 0x02 || (objByte & 0x0f) == 0x03) {
-                                romBytes[objAddr+objOffset] = (byte)((objByte & 0xf0) + 0x03);
-                                for (int key = 0; key < 4; key++) {
-                                    KeyLocation loc = level.getLocation(key);
-                                    if (loc.getY() * 0xa0 + loc.getX() == objIdx) {
-                                        romBytes[objAddr+objOffset] = (byte)((objByte & 0xf0) + 0x02);
-                                        break;
-                                    }
-                                }
-                                locIdx++;
-                            }
-                            objIdx++;
-                            objOffset++;
-                        }
+                        return canSwim(inventory);
+                    }
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                return canSwim(inventory) && inventory.contains(Items.GARLIC) && inventory.contains(Items.GROWTH_SEED);
+            }
+            else if (region == 0x9) {
+                if (location == 0) {
+                    return canLift(inventory) && canSwim(inventory)
+                            && (canSuperSwim(inventory)
+                            || inventory.contains(Items.SPIKED_HELMET)
+                            || difficulty >= Difficulty.HARD);
+                }
+                else {
+                    return canLift(inventory) && canSwim(inventory)
+                            && (canSuperSwim(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                }
+            }
+            else if (region == 0xa) {
+                return canLift(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x1b) {
+                return inventory.contains(Items.GARLIC);
+            }
+        }
+        else if (level.equals("N6")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.GARLIC) && canGP(inventory)
+                            && (canSwim(inventory) || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)));
+                }
+                else if (location == 1) {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.GARLIC)
+                            && inventory.contains(Items.SPIKED_HELMET)
+                            && canGP(inventory)
+                            && (canSwim(inventory) || (difficulty > Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+                }
+                else if (location == 3) {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
+                            && (canSwim(inventory) || inventory.contains(Items.JUMP_BOOTS));
+                }
+                else {
+                    return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory) && canSwim(inventory);
+                }
+            }
+            else if (region == 0x5) {
+			/*
+			* New addition for this check for MINOR GLITCHES. 
+			* You can skip the need for Boots using a Walljump when compared to HARD.
+			* This is for the Boss Room - Above Silver Chest check.
+			*/
+                return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
+                        && canSwim(inventory)
+                            || (difficulty >= Difficulty.HARD
+                                && inventory.contains(Items.JUMP_BOOTS) 
+								&& keyColor == 0);
+							|| (difficulty >= Difficulty.S_HARD
+                                && keyColor == 0);
+            }
+            else if (region == 0x6) {
+                return canSuperGP(inventory) && inventory.contains(Items.NIGHT_VISION_GOGGLES)
+                        && (difficulty >= Difficulty.HARD || inventory.contains(Items.JUMP_BOOTS));
+            }
+            else if (region == 0x14) {
+                return canSuperGP(inventory);
+            }
+            else if (region == 0x19) {
+                return canSuperGP(inventory) && inventory.contains(Items.GARLIC);
+            }
+            else if (region == 0x1c) {
+                return inventory.contains(Items.GARLIC) && canGP(inventory) && inventory.contains(Items.PURITY_STAFF)
+                        && (canSwim(inventory) || (difficulty >= Difficulty.HARD && keyColor == 1));
+            }
+        }
+        else if (level.equals("W1")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return !daytime || (inventory.contains(Items.GARLIC) && canSuperGP(inventory));
+                }
+                else {
+                    if (daytime) {
+                        return inventory.contains(Items.GARLIC) && canSuperGP(inventory);
+                    }
+                    else {
+                        return inventory.contains(Items.GARLIC) || canGP(inventory);
+                    }
+                }
+            }
+            else if (region == 0x5) {
+                return canSuperGP(inventory)
+                        && ((difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS))
+                            || canLift(inventory))
+                        && (!daytime || inventory.contains(Items.GARLIC));
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return inventory.contains(Items.GARLIC)
+                            || (!daytime && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory));
+                }
+                else {
+                    return canSuperGP(inventory) && canLift(inventory) && (!daytime || inventory.contains(Items.GARLIC));
+                }
+            }
+            else if (region == 0x8) {
+                if (!daytime && !inventory.contains(Items.GARLIC)) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return ((difficulty >= Difficulty.S_HARD && canGP(inventory)) || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
+                }
+                else if (location == 2) {
+                    return canGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0xa) {
+                return true;
+            }
+            else if (region == 0x14) {
+                return true;
+            }
+            else if (region == 0x18) {
+                return canSuperGP(inventory)
+                        && (canLift(inventory)
+                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)))
+                        && (!daytime || inventory.contains(Items.GARLIC));
+            }
+        }
+        else if (level.equals("W2")) {
+            if (region == 0x1) {
+                if (location == 1 && difficulty > Difficulty.EASY) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.WHEELS);
+                }
+            }
+            else if (region == 0x5) {
+                return true;
+            }
+            else if (region == 0x7) {
+                return canGP(inventory);
+            }
+            else if (region == 0x8) {
+                return inventory.contains(Items.STONE_FOOT) && canSwim(inventory)
+                        && (inventory.contains(Items.SPIKED_HELMET) || canSuperSwim(inventory));
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.STONE_FOOT) && canSwim(inventory);
+            }
+            else if (region == 0xa) {
+                if (location == 0) {
+                    return inventory.contains(Items.WHEELS);
+                }
+                else {
+                    return inventory.contains(Items.WHEELS) && canSwim(inventory);
+                }
+            }
+            else if (region == 0x14) {
+                return true;
+            }
+        }
+        else if (level.equals("W3")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS)
+                            || (difficulty >= Difficulty.HARD && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 1) {
+					/*
+					* Additional HARD Logic added for this check, which is Main Area - Top Center.
+					* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
+					* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
+					* then do a midair enemy bounce using the Paragoom.
+					* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
+					* Then go across the 2nd set of pipes and do the same midair enemy bounce using the Paragoom.
+					* The latter option can only be in logic if this check is specifically the Grey or Red Keys.
+					* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
+					*/
+                    return canGP(inventory)
+						|| (difficulty >= Difficulty.HARD
+							&& (canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS) && (keyColor == 0 || keyColor == 1)))					keyColor == 1)
+                            && canLift(inventory)
+                            && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 2) {
+                    return canSwim(inventory);
+                }
+                else if (location == 3) {
+                    return canSuperSwim(inventory);
+                }
+            }
+            else if (region == 0x7) {
+                if (!canSwim(inventory)) {
+                    return false;
+                }
+                else if (location == 1 || location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x14) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x1a) {
+				/*
+				* Added MERCILESS logic to this region.
+				* From Main Area - Top Center, use a Throw + Dashjump wallclip to reach the top of the area on the left side. 
+				* Next, do a charge to the right and jump. You should screen scroll down and land on the 4th pipe. 
+				* Do a High Jump from the 4th pipe over to the 6th pipe, then do another High Jump from the 6th pipe to the 5th pipe. 
+				* If done right, walk off the left side of the 5th pipe, then Press Up. 
+				* If you are placed at the door that is underwater, press up again to enter this region, which is the Jellyfish Room.
+				* Note, a Soft Reset is required. Do this soft reset after making a suspend save before the Throw + Dashjump wallclip. 
+				* This execution skips the need for the Air Pump.
+				*/
+                return (inventory.contains(Items.PUMP) && canSwim(inventory)
+					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(item.JUMP_BOOTS));
+            }
+        }
+        else if (level.equals("W4")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0x5) 
+				if (location == 1) {
+					/*
+					* Added MERCILESS Logic for this region, which is Switch Puzzle Main.
+					* You can use Ladder Scrolling to skip the need for the Golden Glove and the Boots 
+					* when compared to MINOR GLITCHES.
+					*/
+					return (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
+						&& (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+						&& canSuperGP(inventory);
+						/*
+						* Alternative execution for MINOR GLITCHES, which can be done without Red Overalls.
+						* Line up with the proper pixel, then do a Reverse High Walljump
+						* to break the blocks that lead to this check, which is Switch Puzzle Main - Lower Left.
+						*/
+							|| (difficulty >= Difficulty.S_HARD 
+								&& inventory.contains(Items.JUMP_BOOTS) 
+								&& inventory.contains(Items.SPIKED_HELMET)
+								&& (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))));
+				}
+                return (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
+						&& (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+						&& canSuperGP(inventory);
+            }
+            else if (region == 0x7) {
+                return canLift(inventory) && inventory.contains(Items.PROPELLOR);
+            }
+            else if (region == 0x9) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+					/*
+					* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
+					* I also added a MINOR GLITCHES alternative for this check. 
+					* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
+					* Then use a high walljump to escape out of the pit. 
+					* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
+					*/
+                    return canSuperGP(inventory)
+                        && (inventory.contains(Items.SPIKED_HELMET)
+                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+							|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+                }
+            }
+            else if (region == 0x16) {
+				/*
+				* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 1 - Upper Right.
+				* If you use Ladder Scrolling to reach the region, only a regular glove is needed to get this check.
+				*/
+                return canSuperLift(inventory)
+					|| (difficulty >= Difficulty.MERCILESS && canLift(inventory));
+            }
+            else if (region == 0x17) {
+                if (location == 0) {
+                    return canLift(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x19) {
+				/*
+				* Added MINOR GLITCHES logic for this check, which is Zombie Room - Below Third Platform.
+				* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
+				*/
+                return inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS)
+					|| difficulty >= Difficulty.S_HARD;
+            }
+            else if (region == 0x1c) {
+				/*
+				* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 2 - Upper Right.
+				* If you use Ladder Scrolling to reach the region, only the Red Overalls are needed to get this check.
+				*/
+                return canSuperGP(inventory)
+					&& (canSuperLift(inventory) || difficulty >= Difficulty.MERCILESS);
+            }
+        }
+        else if (level.equals("W5")) {
+            if (region == 0xc) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                }
+            }
+            else if (!canSwim(inventory)) {
+                return false;
+            }
+            else if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.GROWTH_SEED) && canSuperSwim(inventory);
+                }
+                else {
+                    return inventory.contains(Items.GROWTH_SEED);
+                }
+            }
+            else if (region == 0x4) {
+                return difficulty > Difficulty.EASY;
+            }
+            else if (region == 0xa) {
+                return canSuperSwim(inventory);
+            }
+            else if (region == 0x16) {
+                if (!canSuperSwim(inventory)) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return canSuperLift(inventory) && inventory.contains(Items.SPIKED_HELMET);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
+            }
+            else if (region == 0x1B) {
+                return inventory.contains(Items.RED_CHEMICAL) && inventory.contains(Items.BLUE_CHEMICAL);
+            }
+        }
+        else if (level.equals("W6")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return (difficulty >= Difficulty.S_HARD || inventory.contains(Items.RUST_SPRAY))
+                            && canGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+				/* 
+				* Added a check for MERCILESS difficulty for reaching the Green Chest Area (Platforming Challenge) without the Fire Extinguisher.
+				* This area is reached on MERCILESS difficulty via Ladder Scrolling after using I-Frames to pass the first 2 fires.
+				*/ 
+                if (!inventory.contains(Items.FIRE_EXTINGUISHER) && difficulty < Difficulty.MERCILESS) {
+                    return false;
+                }
+                if (difficulty < Difficulty.S_HARD) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    if (location == 2) {
+                        return inventory.contains(Items.JUMP_BOOTS);
+                    }
+                    else {
+                        return inventory.contains(Items.JUMP_BOOTS)
+                                || inventory.contains(Items.SPIKED_HELMET);
+                    }
+                }
+            }
+            else if (region == 0x8) {
+                if (location == 2) {
+                    return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.RUST_SPRAY) && canLift(inventory);
+                }
+            }
+            else if (region == 0xa) {
+                return canLift(inventory) && canGP(inventory);
+            }
+            else if (region == 0x18) {
+                return canSuperGP(inventory);
+            }
+        }
+        else if (level.equals("S1")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.BEANSTALK_SEEDS);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+            }
+            else if (region == 0x15) {
+                return true;
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.BEANSTALK_SEEDS);
+            }
+            else if (region == 0x19) {
+                return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x1a) {
+                if (location == 0) {
+                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+				/*
+				* Additional HARD Logic added for this check.
+				* Bonk off enemies just as they are becoming unstunned near a block.
+				* If done right, this will cause the enemy to gain 1 block of height.
+				* Do this twice with the rightmost Spearhead so that it reaches the area above the Blue Chest. 
+				* From there, High Jump off of the Spearhead to reach the area as normal.
+				*/
+                    return (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)
+						|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+                }
+            }
+        }
+        else if (level.equals("S2")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return canLift(inventory);
+                }
+                else if (location == 2) {
+                    return canGP(inventory);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x6) {
+                if (location == 0) {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory);
+                }
+                else {
+                    return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
+                            && (difficulty >= Difficulty.S_HARD ||
+                                (inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC)));
+                }
+            }
+            else if (region == 0xa) {
+                if (location == 0) {
+                    return canSwim(inventory)
+                            && canGP(inventory)
+                            && (canSuperGP(inventory)
+                                || (difficulty >= Difficulty.HARD
+                                    && canLift(inventory)
+                                    && inventory.contains(Items.JUMP_BOOTS)));
+                }
+                else {
+                    return canSwim(inventory) && canGP(inventory)
+                            && (canSuperGP(inventory) || canLift(inventory));
+                }
+            }
+            else if (region == 0x14) {
+                return canGP(inventory) && canSwim(inventory);
+            }
+            else if (region == 0x19) {
+                if (location == 0) {
+				// This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
+                    return canSwim(inventory)
+                        && inventory.contains(Items.GARLIC)
+                        && ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) || canSuperGP(inventory));
+                }
+                else {
+				/*
+				* Added MINOR GLITCHES logic for this check, which is Spiders Side Room - Lower Right.
+				* Break the bottom next to this check, then do a Reverse High Walljump.
+				*/
+                    return canSwim(inventory)
+                        && (inventory.contains(Items.GARLIC)
+						|| (difficulty >= Difficulty.S_HARD && inventory.constructor(Items.JUMP_BOOTS));
+                }
+            }
+        }
+        else if (level.equals("S3")) {
+            if (region == 0x1) {
+                return inventory.contains(Items.WIRE_WIZARD)
+                        && inventory.contains(Items.GOLD_EYE_L)
+                        && inventory.contains(Items.GOLD_EYE_R);
+            }
+            else if (region == 0x2) {
+                if (location == 0) {
+                    return inventory.contains(Items.WIRE_WIZARD);
+                }
+                else if (location == 1) {
+                    return inventory.contains(Items.WIRE_WIZARD)
+                            && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 2) {
+                    return inventory.contains(Items.WIRE_WIZARD)
+                            && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                            && inventory.contains(Items.GARLIC);
+                }
+            }
+            else if (region == 0x4 || region == 0x18 || region == 0x1a) {
+                return inventory.contains(Items.BLUE_EYE_L) && inventory.contains(Items.BLUE_EYE_R);
+            }
+            else if (region == 0x8) {
+                return true;
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.WIRE_WIZARD)
+                        && inventory.contains(Items.GOLD_EYE_L)
+                        && inventory.contains(Items.GOLD_EYE_R)
+                        && inventory.contains(Items.SPIKED_HELMET)
+                        && inventory.contains(Items.GARLIC)
+                        && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+                        && canSuperLift(inventory);
+            }
+        }
+        else if (level.equals("S4")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
+            }
+            else if (region == 0x11) {
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.STONE_FOOT);
+            }
+            else if (region == 0x19) {
+                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
+            }
+            else if (region == 0x1c) {
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
+            }
+        }
+        else if (level.equals("S5")) {
+            if (region == 0x1 || region == 0x3) {
+                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
+                        && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
+                        && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+					/*
+					* Added MERCILESS logic for this check, which is Main Area - Lower Right.
+					* Using Ladder Scrolling at the start, this check can be reached without a Glove.
+					*/
+                    return (canLift(inventory) || difficulty >= difficulty.MERCILESS);
+                }
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)
+                        && (difficulty >= Difficulty.HARD || canSuperGP(inventory));
+            }
+            else if (region == 0xe) {
+                return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
+            }
+            else if (region == 0x15) {
+			// Added MINOR GLITCHES logic to reach the Water Current Room. Do a walljump to reach this region.
+                return (inventory.contains(Items.JUMP_BOOTS)
+				|| difficulty >= Difficulty.S_HARD);
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.DETONATOR)
+                        && (inventory.contains(Items.JUMP_BOOTS) || keyColor == 2);
+            }
+        }
+        else if (level.equals("S6")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0x3) {
+                return difficulty > Difficulty.EASY || canSuperGP(inventory);
+            }
+            else if (!inventory.contains(Items.JUMP_BOOTS)) {
+                return false;
+            }
+            else if (region == 0x5) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+					/*
+					* Added a check for MERCILESS difficulty for Outside Upper - Near Moon Door.
+					* Wrong Warp from the bottom outside area into the moon, then exit through the doors to reach this check.
+					* Note, a soft reset is required for this to work, and this wrong warp only works during the day.
+					* The soft reset can occur either immediately before entering the stage or after a suspend save.
+					*/
+                    return (inventory.contains(Items.SCISSORS) || (dayOnly && difficulty >= Difficulty.MERCILESS));
+                }
+            }
+            else if (region == 0x1c) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
+                }
+            }
+            else if (!inventory.contains(Items.SCISSORS)) {
+                return false;
+            }
+            else if (region == 0x7) {
+                if (location == 2) {
+                    return inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x17) {
+                return inventory.contains(Items.GONG) && canLift(inventory) && canSuperGP(inventory);
+            }
+        }
+        else if (level.equals("E1")) {
+            if (region == 0x1) {
+                return true;
+            }
+            else if (region == 0x6) {
+                return inventory.contains(Items.STONE_FOOT) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return inventory.contains(Items.DETONATOR)
+                            || (difficulty >= Difficulty.HARD
+                                && canLift(inventory)
+                                && inventory.contains(Items.JUMP_BOOTS));
+                }
+                else if (location == 1) {
+                    return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
+                }
+                else {
+                    return inventory.contains(Items.DETONATOR);
+                }
+            }
+            else if (region == 0x14 || region == 0x16) {
+                return inventory.contains(Items.STONE_FOOT);
+            }
+        }
+        else if (level.equals("E2")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return true;
+                }
+                else if (location == 1) {
+					/*
+					* Added MERCILESS logic to this check, which is Main Area - Above Rock.
+					* Use Water Scrolling to screen wrap upwards. The terrain available will let you reach this check.
+					*/
+                    return inventory.contains(Items.JUMP_BOOTS)
+						|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory));
+                }
+                else {
+					/*
+					* Added MERCILESS logic to this check, which is Main Area - Lower Right.
+					* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
+					* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
+					* Go just left to the wall you hit without crouching. 
+					* Then, do an in-map save to set your position to the bottom of the pool. 
+					* Charge and immediately crouch to get past the crouch space to reach this check without dayTime or Super Flippers. 
+					* Note, make sure you're holding neutral when the crouch charge ends.
+					*/
+                    return daytime || canSuperSwim(inventory)
+						|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(ITEMS.GARLIC));
+                }
+            }
+            else if (region == 0x6 || region == 0x17) {
+                return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory);
+            }
+            else if (region == 0x8) {
+                return canLift(inventory);
+            }
+            else if (region == 0x14) {
+                return canLift(inventory);
+            }
+            else if (region == 0x15) {
+                return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory) && inventory.contains(Items.SPIKED_HELMET);
+            }
+            else if (region == 0x1A) {
+				/*
+					* Added MERCILESS logic to this region, which is the Blue Chest Area.
+					* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
+					* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
+					* Go just left to the wall you hit without crouching. 
+					* Then, do an in-map save to set your position to the bottom of the pool. 
+					* Charge and immediately crouch to get past the crouch space. Make sure you're holding neutral when the crouch charge ends.
+					* Finally, jump up to get past the current and climb the ladder to reach this region without dayTime or Super Flippers.
+				*/
+                return daytime || canSuperSwim(inventory)
+					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(ITEMS.GARLIC));
+            }
+        }
+        else if (level.equals("E3")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return true;
+                }
+                else {
+                    return canLift(inventory) || difficulty >= Difficulty.S_HARD;
+                }
+            }
+            else if (!canLift(inventory) && difficulty < Difficulty.S_HARD) {
+                return false;
+            }
+            else if (region == 0x4 || region == 0x9) {
+                return canSuperLift(inventory);
+            }
+            else if (region == 0x7) {
+                if (location < 2) {
+                    return canLift(inventory) && inventory.contains(Items.BRICK);
+                }
+                else {
+                    return canLift(inventory) && inventory.contains(Items.BRICK) && canGP(inventory);
+                }
+            }
+            else if (region == 0x1a) {
+                if (!daytime && !canSuperLift(inventory) && difficulty < Difficulty.S_HARD) {
+                    return false;
+                }
+                else if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    if (difficulty >= Difficulty.HARD) {
+                        return true;
+                    }
+                    else {
+                        return canSuperGP(inventory) || inventory.contains(Items.JUMP_BOOTS);
                     }
                 }
             }
         }
-
-        // set up key color table for the key logic patch
-        int keyTableIdx = 0x36eb;
-        int keyTableOffset = 0;
-        for (int levelNum = 0; levelNum < 25; levelNum++) {
-            Level level = keyLocations[levelNum];
-            for (int key = 3; key > 0; key--) {
-                KeyLocation loc = level.getLocation(key);
-                int regionCoords = loc.getRegion() / 0xa;
-                regionCoords <<= 4;
-                regionCoords += loc.getRegion() % 0xa;
-                romBytes[keyTableIdx+keyTableOffset] = (byte)regionCoords;
-                keyTableOffset++;
+        else if (level.equals("E4")) {
+            if (region == 0x1) {
+                if (location == 1) {
+                    return daytime || inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+                return true;
+            }
+            else if (region == 0x7) {
+                return inventory.contains(Items.DETONATOR) && inventory.contains(Items.JUMP_BOOTS);
+            }
+            else if (region == 0xa) {
+                return inventory.contains(Items.GARLIC)
+                        && (inventory.contains(Items.SPIKED_HELMET)
+                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)));
+            }
+            else if (region == 0x14) {
+                return inventory.contains(Items.GARLIC) && canLift(inventory);
+            }
+            else if (region == 0x1B) {
+                if (location == 1) {
+                    return daytime || inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD;
+                }
+                else {
+                    return (daytime && canSuperLift(inventory))
+                            || (!daytime
+                                && (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD)
+                                && canLift(inventory));
+                }
             }
         }
-
-        return romBytes;
+        else if (level.equals("E5")) {
+            if (region == 0x3) {
+				/*
+				* Added MERCILESS logic for this region, which is the Blue Hub Room (0x3). 
+				* You can do a Double Bear Bounce from the starting area to reach this region. 
+				* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+				* The Boots and Golden Glove are both required to perform this execution.
+				*/ 
+                return inventory.contains(Items.SPIKED_HELMET)
+					&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+						|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+							&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+            }
+            else if (region == 0x6 || region == 0x7) {
+                return canLift(inventory)
+                        && ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD))
+                            || inventory.contains(Items.WARP_REMOTE));
+            }
+            else if (region == 0x9) {
+                return inventory.contains(Items.WARP_REMOTE);
+            }
+            else if (region == 0xa || region == 0xc) {
+				/*
+				* Added MERCILESS logic for these regions, which are the Blue Unstable Platforms Room (0xa) and the Starting Area (0xc). 
+				* You can do a Double Bear Bounce from the starting area to reach this region. 
+				* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+				* The Boots and Golden Glove are both required to perform this execution.
+				*/ 
+                return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+					|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+						&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+            }
+            else if (region == 0x18) {
+                return canLift(inventory);
+            }
+        }
+        else if (level.equals("E6")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return true;
+                }
+                else if (location == 1) {
+                    if (difficulty <= Difficulty.NORMAL) {
+                        return canLift(inventory) && canSuperGP(inventory);
+                    }
+                    else if (difficulty <= Difficulty.HARD) {
+                        // require lift to get through walls but allow jellybob manip
+                        return canLift(inventory) &&
+                                (canGP(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                    }
+                    else {
+                        return canGP(inventory) || inventory.contains(Items.SPIKED_HELMET);
+                    }
+                }
+                else {
+                    return canLift(inventory);
+                }
+            }
+            else if (region == 0x4) {
+                return canLift(inventory) && inventory.contains(Items.JACKHAMMER);
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return canLift(inventory) && canGP(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                }
+                else {
+                    return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                }
+            }
+            else if (region == 0x11) {
+                return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+            }
+            else if (region == 0x14) {
+                return (difficulty >= Difficulty.S_HARD || canLift(inventory))
+                        && (keyColor == 0 || canSuperGP(inventory));
+            }
+            else if (region == 0x18) {
+                if (location == 0) {
+                    return inventory.contains(Items.PICKAXE) && inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return inventory.contains(Items.PICKAXE) && canLift(inventory);
+                }
+            }
+        }
+        else if (level.equals("E7")) {
+            if (region == 0x1) {
+                if (location == 0) {
+                    return inventory.contains(Items.JUMP_BOOTS);
+                }
+                else {
+                    return true;
+                }
+            }
+            else if (region == 0x4) {
+                if (location == 0) {
+                    return inventory.contains(Items.VALVE) && canLift(inventory);
+                }
+                else {
+				/* 
+				* Added MINOR GLITCHES logic for the Vampire Area - Center Left check.
+				* This check can be obtained without a Glove, using just Boots.
+				* Perform a High Walljump to reach the Spearhead located in the upper right corner.
+				* Stun it, then walk into it towards the left and knock it down the ledges necessary.
+				* Once it's off the ledge that the door leading to the Hammerbot room is on, do the jumps across like normal to reach the check.
+				*/
+                    return (difficulty > Difficulty.EASY && inventory.contains(Items.VALVE) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)
+					|| (difficulty >= Difficulty.S_HARD && inventory.contains(ITEMS.VALVE) && inventory.contains(Items.JUMP_BOOTS));
+                }
+            }
+            else if (region == 0x7) {
+                if (location == 0) {
+                    return inventory.contains(Items.VALVE);
+                }
+                else {
+                    return inventory.contains(Items.VALVE) && canSuperLift(inventory);
+                }
+            }
+            else if (region == 0xa) {
+                return true;
+            }
+            else if (region == 0x15) {
+                if (location == 0) {
+                    return true;
+                }
+                else {
+                    return inventory.contains(Items.DEMON_BLOOD) || difficulty >= Difficulty.S_HARD;
+                }
+            }
+            else if (region == 0x18) {
+                return inventory.contains(Items.VALVE) && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS)) && canSuperLift(inventory);
+            }
+        }
+        return false;
     }
 
     /**
-     * Edit sprite palette assignments in the given range.
+     * Helper function for canAccess() - checks if Wario can access the given level by approaching from the west.
+     * This was implemented to avoid circular dependencies.
+     */
+    private static boolean canAccessFromWest(String location, List<Integer> inventory) {
+        if (location.equals("W1")) {
+            return canAccess("NW", inventory);
+        }
+        else if (location.equals("W2")) {
+            return inventory.contains(Items.DOCUMENT_A) && inventory.contains(Items.DOCUMENT_B)
+                    && canAccessFromWest("W1", inventory);
+        }
+        else if (location.equals("W3")) {
+            return inventory.contains(Items.RAINCLOUD_JAR)
+                    && canAccessFromWest("W2", inventory);
+        }
+        else if (location.equals("W4")) {
+            return inventory.contains(Items.RAINCLOUD_JAR)
+                    && canAccessFromWest("W3", inventory);
+        }
+        else if (location.equals("S1")) {
+            return canAccess("SW", inventory);
+        }
+        else if (location.equals("S2")) {
+            return inventory.contains(Items.MUSIC_BOX_1)
+                    && canAccessFromWest("S1", inventory);
+        }
+        else if (location.equals("S3")) {
+            return ((inventory.contains(Items.BLUE_RING) && inventory.contains(Items.RED_RING))
+                    || (inventory.contains(Items.ANGER_HALBERD) && inventory.contains(Items.ANGER_SPELL)))
+                    && canAccessFromWest("S2", inventory);
+        }
+        else if (location.equals("E1")) {
+            return canAccess("SE", inventory);
+        }
+        else if (location.equals("E2")) {
+            return inventory.contains(Items.FREEZE_CANE) && inventory.contains(Items.FREEZE_SPELL)
+                    && canAccessFromWest("E1", inventory);
+        }
+        else if (location.equals("E4")) {
+            return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
+                    && canAccessFromWest("E2", inventory);
+        }
+        else if (location.equals("E7")) {
+            return inventory.contains(Items.TORCH)
+                    && canAccessFromWest("E4", inventory);
+        }
+        return false;
+    }
+
+    /**
+     * Helper function for canAccess() - checks if Wario can access the given level by approaching from the east.
+     * This was implemented to avoid circular dependencies.
+     */
+    private static boolean canAccessFromEast(String location, List<Integer> inventory) {
+        if (location.equals("W1")) {
+            return inventory.contains(Items.DOCUMENT_A) && inventory.contains(Items.DOCUMENT_B)
+                    && canAccessFromEast("W2", inventory);
+        }
+        else if (location.equals("W2")) {
+            return inventory.contains(Items.RAINCLOUD_JAR)
+                    && canAccessFromEast("W3", inventory);
+        }
+        else if (location.equals("W3")) {
+            return inventory.contains(Items.RAINCLOUD_JAR)
+                    && canAccessFromEast("W4", inventory);
+        }
+        else if (location.equals("W4")) {
+            return canAccess("SW", inventory);
+        }
+        else if (location.equals("S1")) {
+            return inventory.contains(Items.MUSIC_BOX_1)
+                    && canAccessFromEast("S2", inventory);
+        }
+        else if (location.equals("S2")) {
+            return inventory.contains(Items.BLUE_RING) && inventory.contains(Items.RED_RING)
+                    && canAccessFromEast("S3", inventory);
+        }
+        else if (location.equals("S3")) {
+            return canAccess("SE", inventory);
+        }
+        else if (location.equals("E1")) {
+            return inventory.contains(Items.FREEZE_CANE) && inventory.contains(Items.FREEZE_SPELL)
+                    && canAccessFromEast("E2", inventory);
+        }
+        else if (location.equals("E2")) {
+            return inventory.contains(Items.RED_ARTIFACT) && inventory.contains(Items.GREEN_ARTIFACT) && inventory.contains(Items.BLUE_ARTIFACT)
+                    && canAccessFromEast("E4", inventory);
+        }
+        else if (location.equals("E4")) {
+            return inventory.contains(Items.TORCH);
+        }
+        else if (location.equals("E7")) {
+            return inventory.contains(Items.TORCH);
+        }
+        return false;
+    }
+
+    /**
+     * Deep copy a level list
      *
-     * @param bank  which ROM bank to examine
-     * @param start starting address of palettes to edit
-     * @param end   end address of palettes to edit (should point to a 0x80 byte)
-     * @param from  palette number (0-7) to change from
-     * @param to    palette number (0-7) to change to
+     * @param levelList list to copy
      */
-    private static byte[] editPalettes(byte[] romBytes, int bank, int start, int end, int from, int to) {
-        int idx = bank * 0x4000;
-        int offset = start;
-        while (offset < end) {
-            if ((romBytes[idx+offset] & 0xff) == 0x80) {
-                offset++;
-                if ((romBytes[idx+offset] & 0xff) == 0xff &&
-                        (romBytes[idx+offset+1] & 0xff) == 0xff &&
-                        (romBytes[idx+offset+2] & 0xff) == 0xff &&
-                        (romBytes[idx+offset+3] & 0xff) == 0xff) {
-                    break;
-                }
-                while ((romBytes[idx+offset+1] & 0xf0) >= 0x40 && (romBytes[idx+offset+1] & 0xf0) <= 0x70) {
-                    offset += 2;
-                }
-            }
-            offset += 3;
-            if ((romBytes[idx+offset] & 0x07) == from) {
-                romBytes[idx+offset] = (byte)((romBytes[idx+offset] & 0xf8) + to);
-            }
-            offset++;
+    private static List<Level> cloneLevelList(List<Level> levelList) {
+        List<Level> ret = new ArrayList<>(levelList);
+        for (int i = 0; i < ret.size(); i++) {
+            ret.set(i,new Level(ret.get(i)));
         }
-        return romBytes;
-    }
-
-    /**
-     * Update game initialization routine to award Wario some treasure on game start.
-     */
-    private static byte[] addStartingPowers(byte[] romBytes, List<Integer> startingPowers) throws IOException {
-        romBytes = applyPatch(romBytes,"powerPatch.json");
-        int itemsIdx = 0x83fb3;
-        int powersAIdx = 0x83fe2;
-        int powersBIdx = 0x83fe6;
-        int treasureCountIdx = 0x83ff5;
-
-        for (Integer item : startingPowers) {
-            // find which inventory bucket and slot this belongs in
-            int bucket = item / 8;
-            int slot = item % 8;
-
-            // place item in correct slot
-            romBytes[itemsIdx + bucket] |= ((1 << slot) & 0xff);
-        }
-
-        byte powersA = 0x00;
-        byte powersB = 0x00;
-        if (startingPowers.contains(Items.BLUE_OVERALLS)) powersA |= 0x01;
-        if (startingPowers.contains(Items.RED_OVERALLS)) powersA |= 0x02;
-        if (startingPowers.contains(Items.JUMP_BOOTS)) powersA |= 0x04;
-        if (startingPowers.contains(Items.RED_GLOVES)) powersB |= 0x01;
-        if (startingPowers.contains(Items.GOLD_GLOVES)) powersB |= 0x02;
-        if (startingPowers.contains(Items.SPIKED_HELMET)) powersB |= 0x04;
-        if (startingPowers.contains(Items.GARLIC)) powersB |= 0x08;
-        if (startingPowers.contains(Items.FROG_GLOVES)) powersB |= 0x10;
-        if (startingPowers.contains(Items.SWIM_FINS)) powersB |= 0x20;
-
-        romBytes[powersAIdx] = powersA;
-        romBytes[powersBIdx] = powersB;
-        // store initial treasure count as binary-coded decimal
-        romBytes[treasureCountIdx] = (byte)(((startingPowers.size()/10 & 0xff) << 4) + (startingPowers.size()%10 & 0xff));
-
-        return romBytes;
-    }
-
-    /**
-     * Update level data to reveal hidden pathways to the player.
-     */
-    private static byte[] revealSecrets(byte[] romBytes) {
-        int tilesetTable  = 0xC04C5;
-        int effectsTable  = 0xC8000;
-        int subtilesTable = 0xC090D;
-        int flagsTable    = 0xC09D1;
-        // bank -> location -> data
-        SortedMap<Integer, SortedMap<Integer, List<Byte>>> compressedGfxData = new TreeMap<>();
-        for (int tilesetId = 1; tilesetId <= 0x99; tilesetId++) {
-            int tilesetEntry = tilesetTable + tilesetId*2;
-            int tilesetDataOffset = ((romBytes[tilesetEntry+1] & 0xff) << 8) + (romBytes[tilesetEntry] & 0xff);
-            int tilesetDataLocation = 0xC0000 + tilesetDataOffset - 0x4000;
-            int subtilesIdx = romBytes[tilesetDataLocation] & 0xff;
-            int flagsIdx = romBytes[tilesetDataLocation+1] & 0xff;
-            int dataBank = 0x38 + subtilesIdx/6;
-
-            byte[] subtiles = new byte[0x200];
-            byte[] effects = new byte[0x100];
-            byte[] flags = new byte[0x200];
-            int compressedFlagsSize = 0;
-
-            int subtilesLocation = ((romBytes[subtilesTable+subtilesIdx*2+1] & 0xff) << 8)
-                    + (romBytes[subtilesTable+subtilesIdx*2] & 0xff);
-            subtilesLocation = subtilesLocation - 0x4000 + (dataBank * 0x4000);
-            System.arraycopy(romBytes, subtilesLocation + 0, subtiles, 0, subtiles.length);
-            int effectsLocation = ((romBytes[effectsTable+subtilesIdx*2+1] & 0xff) << 8)
-                    + (romBytes[effectsTable+subtilesIdx*2] & 0xff);
-            int effectsBank = (subtilesIdx >= 0x3f) ? 0x50 : 0x32;
-            effectsLocation = effectsLocation - 0x4000 + (effectsBank * 0x4000);
-            System.arraycopy(romBytes, effectsLocation + 0, effects, 0, effects.length);
-            int flagsLocation = ((romBytes[flagsTable+flagsIdx*2+1] & 0xff) << 8)
-                    + (romBytes[flagsTable+flagsIdx*2] & 0xff);
-            flagsLocation = flagsLocation - 0x4000 + (dataBank * 0x4000);
-            int flagsPtr = 0;
-            int flagsProcessed = 0;
-            while (true) {
-                int indicator = romBytes[flagsLocation + flagsPtr] & 0xff;
-                flagsPtr++;
-                if (indicator == 0x00) {
-                    break;
-                }
-                else if ((indicator & 0x80) > 0) {
-                    indicator &= 0x7f;
-                    for (int i = 0; i < indicator; i++) {
-                        flags[flagsProcessed] = romBytes[flagsLocation+flagsPtr];
-                        flagsPtr++;
-                        flagsProcessed++;
-                    }
-                }
-                else {
-                    for (int i = 0; i < indicator; i++) {
-                        flags[flagsProcessed] = romBytes[flagsLocation+flagsPtr];
-                        flagsProcessed++;
-                    }
-                    flagsPtr++;
-                }
-            }
-            if (flagsProcessed != 0x200) {
-                System.out.println("Error in decompression");
-            }
-            for (int metatileIdx = 0; metatileIdx < effects.length/2; metatileIdx++) {
-                int effect = ((effects[metatileIdx*2+1] & 0xff) << 8) + (effects[metatileIdx*2] & 0xff);
-                byte[] newSubtiles = null;
-                if ((effect >= 0x49FB && effect <= 0x4A17) || (effect >= 0x4CB4 && effect <= 0x4CD0)) {
-                    // regular break
-                    newSubtiles = new byte[]{0x68, 0x69, 0x78, 0x79};
-                }
-                else if (effect >= 0x4D60 && effect <= 0x4D7C) {
-                    // hard break
-                    newSubtiles = new byte[]{0x6A, 0x6B, 0x7A, 0x7B};
-                }
-                else if (effect >= 0x4E0E && effect <= 0x4E2A) {
-                    // big break BL
-                    newSubtiles = new byte[]{0x48, 0x63, 0x78, 0x4A};
-                }
-                else if (effect >= 0x4EA2 && effect <= 0x4EBE) {
-                    // big break BR
-                    newSubtiles = new byte[]{0x63, 0x49, 0x4A, 0x79};
-                }
-                else if (effect >= 0x4F5F && effect <= 0x4F7B) {
-                    // big break TR
-                    newSubtiles = new byte[]{0x3A, 0x69, 0x63, 0x49};
-                }
-                else if (effect >= 0x4FF3 && effect <= 0x500F) {
-                    // big break TL
-                    newSubtiles = new byte[]{0x68, 0x3A, 0x48, 0x63};
-                }
-                else if (effect >= 0x50E0 && effect <= 0x50FC) {
-                    // H big break BL
-                    newSubtiles = new byte[]{0x5A, 0x7D, 0x7A, 0x4B};
-                }
-                else if (effect >= 0x5195 && effect <= 0x51B1) {
-                    // H big break BR
-                    newSubtiles = new byte[]{0x7D, 0x5B, 0x4B, 0x7B};
-                }
-                else if (effect >= 0x5273 && effect <= 0x528F) {
-                    // H big break TR
-                    newSubtiles = new byte[]{0x3B, 0x6B, 0x7D, 0x5B};
-                }
-                else if (effect >= 0x5328 && effect <= 0x5344) {
-                    // H big break TL
-                    newSubtiles = new byte[]{0x6A, 0x3B, 0x5A, 0x7D};
-                }
-                else if (effect >= 0x53FB && effect <= 0x5417) {
-                    // throw break
-                    newSubtiles = new byte[]{0x5C, 0x5D, 0x6C, 0x6D};
-                }
-                else if (effect >= 0x544B && effect <= 0x5467) {
-                    // fire break
-                    newSubtiles = new byte[]{0x5E, 0x5F, 0x6E, 0x6F};
-                }
-                else if (effect >= 0x5497 && effect <= 0x54B3) {
-                    // fat break
-                    newSubtiles = new byte[]{0x3E, 0x3F, 0x4E, 0x4F};
-                }
-                else if (effect >= 0x4A9A && effect <= 0x4C7C) {
-                    // snow break
-                    newSubtiles = (flags[metatileIdx*4] != 0x05) ? new byte[]{0x3C, 0x3D, 0x4C, 0x4D} : null;
-                }
-                else if (effect >= 0x54E4 && effect <= 0x55D7) {
-                    // yarn break
-                    newSubtiles = (flags[metatileIdx*4] != 0x05) ? new byte[]{0x3C, 0x3D, 0x4C, 0x4D} : null;
-                }
-
-                if (newSubtiles != null && (flags[metatileIdx*4] != 0x0D || flags[metatileIdx*4+1] != 0x0D)) {
-                    System.arraycopy(newSubtiles, 0, subtiles, metatileIdx * 4 + 0, newSubtiles.length);
-
-                    // now we need to deal with the flags...........
-                    for (int i = 0; i < 4; i++) {
-                        flags[metatileIdx*4 + i] &= 0x07;
-                        flags[metatileIdx*4 + i] |= 0x08;
-                    }
-                }
-            }
-
-            // update subtiles
-            List<Byte> subtileList = new Vector<>();
-            for (byte subtile : subtiles) {
-                subtileList.add(subtile);
-            }
-            compressedGfxData.putIfAbsent(dataBank, new TreeMap<>());
-            compressedGfxData.get(dataBank).putIfAbsent(subtilesLocation, subtileList);
-
-            // now we need to recompress flags
-            int newCount = 0;
-            int newPtr = 0;
-            int lookaheadPtr = 0;
-            int last = 0x00;
-            int run = 0;
-            List<Byte> compressedFlagsList = new Vector<>();
-
-            while (newPtr < flags.length) {
-                if (lookaheadPtr >= flags.length) {
-                    compressedFlagsList.add((byte)((lookaheadPtr - newPtr) | 0x80));
-                    newCount++;
-                    while (newPtr < lookaheadPtr) {
-                        compressedFlagsList.add(flags[newPtr]);
-                        newCount++;
-                        newPtr++;
-                    }
-                }
-                else if ((flags[lookaheadPtr] & 0xff) == last) {
-                    run++;
-                    lookaheadPtr++;
-
-                    if (run >= 3) {
-                        lookaheadPtr -= 3;
-                        if (lookaheadPtr > newPtr) {
-                            compressedFlagsList.add((byte) ((lookaheadPtr - newPtr) | 0x80));
-                            newCount++;
-                            while (newPtr < lookaheadPtr) {
-                                compressedFlagsList.add(flags[newPtr]);
-                                newCount++;
-                                newPtr++;
-                            }
-                        }
-                        while (lookaheadPtr < flags.length && (lookaheadPtr-newPtr < 0x7f) && (flags[lookaheadPtr] & 0xff) == last) {
-                            lookaheadPtr++;
-                        }
-                        compressedFlagsList.add((byte)(lookaheadPtr - newPtr));
-                        compressedFlagsList.add((byte)(last));
-                        newCount += 2;
-                        newPtr = lookaheadPtr;
-
-                        run = 0;
-                    }
-                }
-                else {
-                    last = flags[lookaheadPtr] & 0xff;
-                    lookaheadPtr++;
-                    run = 1;
-                }
-            }
-            compressedFlagsList.add((byte)0x00);
-            newCount++;
-
-            compressedGfxData.get(dataBank).putIfAbsent(flagsLocation,compressedFlagsList);
-        }
-
-        // All level gfx data has been processed, edited, and recompressed
-        // some data will unavoidably end up larger than it was previously when recompressed,
-        // so we must move tileset data around to make space (and update pointers to said data!)
-
-        for (Integer dataBank : compressedGfxData.keySet()) {
-            int writePtr = -1;
-            int bankStart = dataBank * 0x4000;
-            for (Map.Entry<Integer, List<Byte>> dataEntry : compressedGfxData.get(dataBank).entrySet()) {
-                int location = dataEntry.getKey();
-                int relLocation = location % 0x4000;
-                List<Byte> data = dataEntry.getValue();
-
-                if (writePtr < 0) {
-                    writePtr = relLocation;
-                }
-                relLocation += 0x4000;
-                int newLocation = bankStart + writePtr;
-                for (Byte dataByte : data) {
-                    romBytes[bankStart + writePtr] = dataByte;
-                    writePtr++;
-                }
-                newLocation = (newLocation % 0x4000) + 0x4000;
-
-                // now update pointers
-                int table = 0;
-                boolean subtiles = false;
-                if (data.size() == 0x200) {
-                    // subtile data
-                    table = subtilesTable;
-                    subtiles = true;
-                }
-                else {
-                    table = flagsTable;
-                }
-                for (int tilesetId = 1; tilesetId <= 0x99; tilesetId++) {
-                    int tilesetEntry = tilesetTable + tilesetId*2;
-                    int tilesetDataOffset = ((romBytes[tilesetEntry+1] & 0xff) << 8) + (romBytes[tilesetEntry] & 0xff);
-                    int tilesetDataLocation = 0xC0000 + tilesetDataOffset - 0x4000;
-                    int subtilesIdx = romBytes[tilesetDataLocation] & 0xff;
-                    int flagsIdx = romBytes[tilesetDataLocation+1] & 0xff;
-                    int thisBank = 0x38 + subtilesIdx/6;
-                    int idx = (subtiles) ? subtilesIdx : flagsIdx;
-                    if (thisBank != dataBank) {
-                        continue;
-                    }
-
-                    int readLocation = ((romBytes[table + idx*2 + 1] & 0xFF) << 8) +
-                            (romBytes[table + idx*2] & 0xFF);
-                    if (readLocation == relLocation) {
-                        romBytes[table + idx*2 + 1] = (byte)(newLocation >>> 8);
-                        romBytes[table + idx*2] = (byte)(newLocation & 0xff);
-                    }
-                }
-            }
-        }
-
-        return romBytes;
-    }
-
-    /**
-     * Write the patched, randomized ROM to disk.
-     *
-     * @param romBytes  byte array representing the final ROM
-     * @param seed      encoded String representation of the seed used to randomize the ROM
-     * @param version         String representing current app version
-     * @throws IOException
-     */
-    private static void savePatchedFile(byte[] romBytes, String seed, String version) throws IOException {
-        String filename = "WL3-randomizer-" + version + "-" + seed + ".gbc";
-        File randoFile = new File(filename);
-        Files.write(randoFile.toPath(),romBytes);
+        return ret;
     }
 }
