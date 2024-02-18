@@ -67,13 +67,14 @@ public class GUI extends JPanel implements ActionListener {
         seedField.setToolTipText("Input a seed code to generate the same game as someone else. Leave blank if you don't have a code to enter.");
 
         JLabel logicLabel = new JLabel("Item placement difficulty:");
-        String[] logicOptions = {"Easy", "Normal", "Hard!", "Hard + Minor Glitches!!"};
+        String[] logicOptions = {"Easy", "Normal", "Hard!", "Hard + Minor Glitches!!", "Merciless!!!!"};
         logicComboBox = new JComboBox(logicOptions);
         logicComboBox.setSelectedIndex(1);
         logicComboBox.setToolTipText("<html><b>Easy</b>: Ensures you can find helpful items before difficult situations, and avoids hiding things in obscure locations.<br>" +
                 "<b>Normal</b>: The standard experience for players who know the original game well.<br>" +
                 "<b>Hard</b>: A hardcore difficulty that requires speedrun-level tricks and very difficult/odd maneuvers, but no glitches.<br>" +
-                "<b>Hard + Minor Glitches</b>: A super-hardcore difficulty that also requires wallclips, but no out-of-bounds or screenwrapping.</html>");
+                "<b>Hard + Minor Glitches</b>: A super-hardcore difficulty that also requires wallclips, but no out-of-bounds or screenwrapping.<br>" +
+				"<b>Merciless: An extremely hardcore difficulty that also requires screen wraps, wrong warps, and double boosts.</html>");
         mapShuffleCheck = new JCheckBox("Map shuffle");
         mapShuffleCheck.setToolTipText("<html>Shuffles the location of every level on the world map.<br>" +
                 "<i>(If you're playing with cutscenes enabled, this will mess up the names and locations of the levels displayed during cutscenes.)</i></html>\n");
