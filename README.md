@@ -42,6 +42,7 @@ In addition to shuffling treasures, the randomizer makes a few changes to the ga
     * **Normal:** The standard experience for players who know the original game well.
     * **Hard:** A hardcore difficulty that requires speedrun-level tricks and very difficult/odd maneuvers, but no glitches.
     * **Hard + Minor Glitches:** A super-hardcore difficulty that also requires wallclips, but no out-of-bounds or screenwrapping.
+    * **Merciless:** An extremely hardcore difficulty that also requires screen wraps, wrong warps, and double boosts.
   * **Map shuffle:** Shuffles the location of every level on the world map. Recommended for experienced players.
   * **Key shuffle:** Shuffles the locations of all keys and music coins in each level. This can make some treasures much harder (or much easier) to get! Recommended for experienced players looking for a game with more exploration.
   * **Restrict music boxes:** If checked, music boxes will only appear in treasure chests guarded by a boss. Recommended for competitive play.
