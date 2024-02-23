@@ -1772,10 +1772,13 @@ public class Main {
                     && inventory.contains(Items.STONE_FOOT);
         }
         else if (location.equals("S4G")) {
+			/*
+			* Added MINOR GLITCHES logic for reaching the Green Chest.
+			* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
+			*/
             return canAccess("S4", inventory)
-                    && inventory.contains(Items.STONE_FOOT)
-                    && canSuperSwim(inventory)
-                    && canSuperGP(inventory);
+                && inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory)
+                && (canSuperGP(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("S4B")) {
             return canAccess("S4", inventory)
@@ -2745,20 +2748,21 @@ public class Main {
             if (region == 0x1) {
                 return true;
             }
-            else if (region == 0xa) {
-                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
+            else if (region == 0xa || region == 0x19) {
+				/* 
+				* Consolidated the Green Chest Room and Spike Maze regions.
+				* Added MINOR GLITCHES logic for the Green Chest Room and Spike Maze regions as well.
+				* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
+				*/
+                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) 
+					&& (canSuperGP(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
-            else if (region == 0x11) {
+            else if (region == 0x11 || region == 0x1c) {
+				// Consolidated the 2 Blue Chest Area regions
                 return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
             }
             else if (region == 0x15) {
                 return inventory.contains(Items.STONE_FOOT);
-            }
-            else if (region == 0x19) {
-                return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) && canSuperGP(inventory);
-            }
-            else if (region == 0x1c) {
-                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory);
             }
         }
         else if (level.equals("S5")) {
