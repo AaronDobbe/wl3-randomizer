@@ -1879,8 +1879,18 @@ public class Main {
                     && canSwim(inventory);
         }
         else if (location.equals("E2B")) {
+			/*
+				* Added MERCILESS logic to this chest.
+				* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
+				* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
+				* Go just left to the wall you hit without crouching. 
+				* Then, do a suspend save to set your position to the bottom of the pool. 
+				* Charge and immediately crouch to get past the crouch space. Make sure you're holding neutral when the crouch charge ends.
+				* Finally, jump up to get past the current and climb the ladder to reach this area without dayTime or Super Flippers.
+			*/
             return canAccess("E2", inventory)
-                    && (dayOnly || canSuperSwim(inventory));
+                    && (dayOnly || canSuperSwim(inventory))
+					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));;
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
@@ -2951,7 +2961,7 @@ public class Main {
 					* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
 					* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
 					* Go just left to the wall you hit without crouching. 
-					* Then, do an in-map save to set your position to the bottom of the pool. 
+					* Then, do a suspend save to set your position to the bottom of the pool. 
 					* Charge and immediately crouch to get past the crouch space. Make sure you're holding neutral when the crouch charge ends.
 					* Finally, jump up to get past the current and climb the ladder to reach this region without dayTime or Super Flippers.
 				*/
