@@ -1603,13 +1603,15 @@ public class Main {
 		* then do a midair enemy bounce using the Paragoom.
 		* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
 		* Go across the 2nd set of pipes, then do the same midair enemy bounce using the Paragoom.
+		* Added MINOR GLITCHES logic for this chest as well.
+		* With a dashjump wallclip, it's possible to reach this chest without needing a Glove when compared to HARD.
 		*/
             return canAccess("W3", inventory)
                 && (canGP(inventory)
 					|| (difficulty >= Difficulty.HARD
 						&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
-                        && canLift(inventory)
-                        && inventory.contains(Items.JUMP_BOOTS)));
+						&& inventory.contains(Items.JUMP_BOOTS)
+                        && (difficulty >= Difficulty.S_HARD || canLift(inventory)));
         }
         else if (location.equals("W3R")) {
             return canAccess("W3", inventory)
