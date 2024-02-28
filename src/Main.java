@@ -1506,8 +1506,12 @@ public class Main {
                     && canSuperSwim(inventory);
         }
         else if (location.equals("N4B")) {
+			/*
+			* Added MINOR GLITCHES logic to this chest.
+			* Perform a well-timed highjump waterclip to reach the room.
+			*/
             return canAccess("N4", inventory)
-                    && inventory.contains(Items.PUMP)
+                    && ((difficulty >= Difficulty.S_HARD && canSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)) || inventory.contains(Items.PUMP))
                     && (difficulty >= Difficulty.HARD || canLift(inventory));
         }
         else if (location.equals("N5S")) {
@@ -2188,7 +2192,14 @@ public class Main {
                 return canSuperSwim(inventory);
             }
             else if (region == 0x12) {
-                return inventory.contains(Items.PUMP) && inventory.contains(Items.JUMP_BOOTS);
+				/*
+				* Added NORMAL and MINOR GLITCHES logic to the Torch Room - Above Rock Check.
+				* NORMAL: Do a charge and then a well timed jump from the middle platform at the bottom to reach this.
+				* MINOR GLITCHES: Do a well timed highjump waterclip to reach the Bat room without the Air Pump.
+				* This can be reached by extension as long as you have access to the Bat Room.
+				*/
+                return ((difficulty >= Difficulty.S_HARD && canSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)) || inventory.contains(Items.PUMP)) 
+					&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x15) {
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
@@ -2198,7 +2209,12 @@ public class Main {
                 return inventory.contains(Items.GARLIC) && (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x17) {
-                return inventory.contains(Items.PUMP);
+				/*
+				* Added MINOR GLITCHES logic to the Bat Room region.
+				* Do a well timed highjump waterclip from the starting area to reach this region without the Air Pump.
+				* This requires Flippers and Boots to be able to execute.
+				*/
+                return (difficulty >= Difficulty.S_HARD && canSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)) || inventory.contains(Items.PUMP);
             }
             else if (region == 0x1d) {
                 return canSwim(inventory) || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
