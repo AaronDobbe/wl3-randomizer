@@ -2460,7 +2460,8 @@ public class Main {
 				* This execution skips the need for the Air Pump.
 				*/
                 return (inventory.contains(Items.PUMP) && canSwim(inventory))
-					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
+						&& (canSwim(inventory) || keyColor == 3));
             }
         }
         else if (level.equals("W4")) {
