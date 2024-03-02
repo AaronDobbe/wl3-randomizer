@@ -2461,7 +2461,7 @@ public class Main {
 				*/
                 return (inventory.contains(Items.PUMP) && canSwim(inventory))
 					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
-						&& (canSwim(inventory) || keyColor == 3));
+						&& (canSwim(inventory) || keyColor != 2));
             }
         }
         else if (level.equals("W4")) {
