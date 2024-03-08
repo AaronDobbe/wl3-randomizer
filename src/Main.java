@@ -3004,11 +3004,17 @@ public class Main {
                 return canSuperLift(inventory);
             }
             else if (region == 0x7) {
+				/*
+				* Added MINOR GLITCHES logic to this region, the E3 Spike Maze.
+				* These checks can be accessed without a Glove by grabbing the right-side owl and dismounting while clipped into the platforms.
+				* You can then use the spikes to damage boost to the other owl and then reach the checks as normal.
+				* In essence, this is an extension of the MINOR GLITCHES execution for the starting room.
+				*/
                 if (location < 2) {
-                    return canLift(inventory) && inventory.contains(Items.BRICK);
+                    return inventory.contains(Items.BRICK) && (difficulty >= Difficulty.S_HARD || canLift(inventory));
                 }
                 else {
-                    return canLift(inventory) && inventory.contains(Items.BRICK) && canGP(inventory);
+                    return inventory.contains(Items.BRICK) && canGP(inventory) && (difficulty >= Difficulty.S_HARD || canLift(inventory));
                 }
             }
             else if (region == 0x1a) {
