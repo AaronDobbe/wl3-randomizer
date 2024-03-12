@@ -1615,7 +1615,7 @@ public class Main {
 					|| (difficulty >= Difficulty.HARD
 						&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
 						&& inventory.contains(Items.JUMP_BOOTS)
-                        && (difficulty >= Difficulty.S_HARD || canLift(inventory)));
+                        && (difficulty >= Difficulty.S_HARD || canLift(inventory))));
         }
         else if (location.equals("W3R")) {
             return canAccess("W3", inventory)
@@ -1858,7 +1858,7 @@ public class Main {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
             return canAccess("E1", inventory)
                     && inventory.contains(Items.STONE_FOOT)
-					&& (inventory.contains(Items.JUMP_BOOTS) || difficulty = Difficulty.S_HARD);
+					&& (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD);
         }
         else if (location.equals("E1B")) {
 			/*
@@ -1895,8 +1895,8 @@ public class Main {
 				* Finally, jump up to get past the current and climb the ladder to reach this area without dayTime or Super Flippers.
 			*/
             return canAccess("E2", inventory)
-                    && (dayOnly || canSuperSwim(inventory))
-					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));;
+                    && (dayOnly || canSuperSwim(inventory)
+					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC)));
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
@@ -2423,7 +2423,7 @@ public class Main {
 					*/
                     return canGP(inventory)
 						|| (difficulty >= Difficulty.HARD
-							&& (canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS) && (keyColor == 0 || keyColor == 1))
+							&& ((canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS)))
                             && canLift(inventory)
                             && inventory.contains(Items.JUMP_BOOTS)));
                 }
@@ -2461,7 +2461,7 @@ public class Main {
 				*/
                 return (inventory.contains(Items.PUMP) && canSwim(inventory))
 					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
-						&& (canSwim(inventory) || keyColor != 2));
+						&& (canSwim(inventory) || keyColor == 3));
             }
         }
         else if (level.equals("W4")) {
@@ -2733,7 +2733,7 @@ public class Main {
 				*/
                     return canSwim(inventory)
                         && (inventory.contains(Items.GARLIC)
-						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS));
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
         }
@@ -2811,7 +2811,7 @@ public class Main {
 				else {
 					return inventory.contains(Items.RUST_SPRAY) 
 						&& inventory.contains(Items.JUMP_BOOTS)
-                        && (canLift(inventory)
+                        && (canLift(inventory);
 				}
 			}
 			else if (region == 0x3) {
