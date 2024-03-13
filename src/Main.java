@@ -1827,7 +1827,7 @@ public class Main {
             return canAccess("S6", inventory)
                     && inventory.contains(Items.JUMP_BOOTS)
                     && (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET))
-                    && canLift(inventory);
+                    && ((difficulty >= Difficulty.S_HARD && inventory.contains(Items.SPIKED_HELMET)) || canLift(inventory));
         }
         else if (location.equals("S6G")) {
             return canAccess("S6", inventory)
