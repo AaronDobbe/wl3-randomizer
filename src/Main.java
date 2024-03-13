@@ -1101,9 +1101,9 @@ public class Main {
         List<Level> finalKeyLocationList = Arrays.asList(finalKeyLocations);
 
         difficulty = Difficulty.EASY;
-        int[] blockers = {-1, -1, -1, -1};
-        int[] winBlockers = {0, 0, 0, 0};
-        while (difficulty <= Difficulty.S_HARD) {
+        int[] blockers = {-1, -1, -1, -1, -1};
+        int[] winBlockers = {0, 0, 0, 0, 0};
+        while (difficulty <= Difficulty.MERCILESS) {
             boolean gotItem;
             do {
                 List<Integer> newItems = new Vector<>();
