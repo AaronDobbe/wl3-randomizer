@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.11.5";
+    private static final String VERSION = "v0.12.0-RC";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -175,12 +175,12 @@ public class Main {
         // randomize lists of non-junk items and locations
         List<Integer> leftInventory = new Vector<>();
         List<List<Integer>> keyIndexes = new ArrayList<>();
-        prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
 
         int attempts = 0;
         // attempt to place treasures
         boolean bossBoxes = options.containsKey("restrictedMusicBoxes") && options.get("restrictedMusicBoxes").equals("true");
-        while (((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, levelList, keyIndexes, 5))
+        while (!prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng)
+                || ((bossBoxes && !placeItemsAssumed(leftInventory, inventory, locations, treasures, levelList, keyIndexes, 5))
                 || (!bossBoxes && !placeItemsLeft(leftInventory, inventory, locations, treasures, levelList, keyIndexes)))
                 || !testDifficulty(itemStart)) {
             // could not finish in reasonable time, or seed difficulty was incorrect
@@ -203,7 +203,7 @@ public class Main {
             keyIndexes = new ArrayList<>();
             fails = 0;
 
-            prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
+//            prepareLists(inventory, leftInventory, locations, treasures, mapList, levelList, keyIndexes, rng);
         }
 
         // items have been placed, now shuffle list of junk and use it to fill in the remaining locations
@@ -403,8 +403,8 @@ public class Main {
             SpoilerLog.writeSpoiler(startingItems, finalTreasures, keyShuffle ? finalKeyLocations : null,
                     mapShuffle ? worldMap : null, encodeSeed(seed),
                     buildPlaythrough(null, false, itemStart),
-                    options);
-            gui.log("Wrote spoiler log to wl3spoiler-"+encodeSeed(seed)+".txt");
+                    options, VERSION);
+            gui.log("Wrote spoiler log to wl3spoiler-"+VERSION+"-"+encodeSeed(seed)+".txt");
         }
         catch (IOException e) {
             gui.log("Error occurred while writing spoiler log: " + e.getMessage());
@@ -414,7 +414,7 @@ public class Main {
     /**
      * Initialize lists in preparation for the game logic to place items.
      */
-    private static void prepareLists(List<Integer> inventory,
+    private static boolean prepareLists(List<Integer> inventory,
                                      List<Integer> leftInventory,
                                      List<Integer> locations,
                                      List<Integer> treasures,
@@ -495,9 +495,17 @@ public class Main {
             treasures.set(worldMap[0]*4, Items.AXE);
             if (keyShuffle) {
                 // also place gray key
-                placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>());
+                if (!placeKey(levelList.get(worldMap[0]),worldMap[0],0,keyIndexes.get(worldMap[0]),new ArrayList<>())) {
+                    return false;
+                }
+            }
+
+            // sanity check - might fail this if a lategame level appears at N1's spot
+            if (!canAccess(locationNames[worldMap[0]*4], new ArrayList<>(), levelList)) {
+                return false;
             }
         }
+        return true;
     }
 
     /**
@@ -773,7 +781,7 @@ public class Main {
         if (fails >= (keyShuffle ? 500 : 500)) {
             return false;
         }
-        int cutoff = enableNewLogic ? 60 : 60;
+        int cutoff = 55;
         int numPowers = 0;
         for (Integer item : leftInventory) {
             if (item >= Items.SWIM_FINS && item <= Items.SPIKED_HELMET) {
@@ -2442,7 +2450,10 @@ public class Main {
                     return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-                    return difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory);
+                    // Secret Attic will never be required on Easy. Hard may require you to nudge enemies up to the top
+                    // without a glove
+                    return difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)
+                            && (difficulty >= Difficulty.HARD || canLift(inventory));
                 }
             }
         }
@@ -2555,12 +2566,12 @@ public class Main {
         }
         else if (level.equals("S5")) {
             if (region == 0x1 || region == 0x3) {
-                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
-                        && inventory.contains(Items.JUMP_BOOTS);
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory)
+                        && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x6) {
-                return inventory.contains(Items.RUST_SPRAY) && canLift(inventory)
-                        && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory);
+                return inventory.contains(Items.RUST_SPRAY) && canGP(inventory)
+                        && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x7) {
                 if (location == 0) {

@@ -9,8 +9,9 @@ public class SpoilerLog {
     private static final String quads = "NWSEE";
 
     public static void writeSpoiler(List<Integer> startingInventory, int[] items, Level[] keyLocations,
-                                    Integer[] worldMap, String seed, byte[] playthrough, Map<String,String> options) throws IOException {
-        FileWriter spoiler = new FileWriter("wl3spoiler-"+seed+".txt");
+                                    Integer[] worldMap, String seed, byte[] playthrough, Map<String,String> options,
+                                    String version) throws IOException {
+        FileWriter spoiler = new FileWriter("wl3spoiler-"+version+"-"+seed+".txt");
         String[] colors = {"Silver  ", "Red     ", "Green   ", "Blue    "};
 
         spoiler.write("Game options:\n-------------\n");
