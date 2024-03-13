@@ -2811,7 +2811,7 @@ public class Main {
 				else {
 					return inventory.contains(Items.RUST_SPRAY) 
 						&& inventory.contains(Items.JUMP_BOOTS)
-                        && (canLift(inventory);
+                        && canLift(inventory);
 				}
 			}
 			else if (region == 0x3) {
