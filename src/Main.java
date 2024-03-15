@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.12.0-RC";
+    private static final String VERSION = "v0.12.0-RC2";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -1959,9 +1959,10 @@ public class Main {
 			* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
 			* The Boots and Golden Glove are both required to perform this execution.
 			*/ 
-            return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-				|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-					&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+            return canAccess("E5", inventory)
+                && ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+				    || (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+					    && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)

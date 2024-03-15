@@ -88,7 +88,7 @@ public class GUI extends JPanel implements ActionListener {
         axeStartCheck.setToolTipText("<html>If checked, the axe will appear in the first chest of the first level.<br>" +
                 "<i>(Recommended for beginners, because you'll always be able to access The Temple for a hint.)</i></html>");
         powerStartCheck = new JCheckBox("Powerful start");
-        powerStartCheck.setToolTipText("Begin the game with a few randomly selected powerups.");
+        powerStartCheck.setToolTipText("Begin the game with a few randomly selected powerups. (Dramatically speeds up randomization time.)");
         excludeJunkCheck = new JCheckBox("No junk items");
         excludeJunkCheck.setToolTipText("<html>Removes all useless treasures from the game, replacing them with empty chests.<br>" +
                 "<i>(You can use the magnifying glass or pause menu to check which chests are empty.)</i></html>");
