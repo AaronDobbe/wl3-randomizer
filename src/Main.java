@@ -1951,7 +1951,8 @@ public class Main {
 			* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
 			* The Boots and Golden Glove are both required to perform this execution.
 			*/ 
-            return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+			return canAccess("E5", inventory)
+				&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
 				|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
 					&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
         }
