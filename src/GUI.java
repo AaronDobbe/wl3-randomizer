@@ -74,7 +74,7 @@ public class GUI extends JPanel implements ActionListener {
                 "<b>Normal</b>: The standard experience for players who know the original game well.<br>" +
                 "<b>Hard</b>: A hardcore difficulty that requires speedrun-level tricks and very difficult/odd maneuvers, but no glitches.<br>" +
                 "<b>Hard + Minor Glitches</b>: A super-hardcore difficulty that also requires wallclips, but no out-of-bounds or screenwrapping.<br>" +
-				"<b>Merciless</b>: An extremely hardcore difficulty that also requires single-tile walljumps, screen wraps, wrong warps, and double boosts.</html>");
+                "<b>Merciless</b>: An extremely hardcore difficulty that also requires single-tile walljumps, screen wraps, wrong warps, and double boosts.</html>");
         mapShuffleCheck = new JCheckBox("Map shuffle");
         mapShuffleCheck.setToolTipText("<html>Shuffles the location of every level on the world map.<br>" +
                 "<i>(If you're playing with cutscenes enabled, this will mess up the names and locations of the levels displayed during cutscenes.)</i></html>\n");
@@ -88,7 +88,7 @@ public class GUI extends JPanel implements ActionListener {
         axeStartCheck.setToolTipText("<html>If checked, the axe will appear in the first chest of the first level.<br>" +
                 "<i>(Recommended for beginners, because you'll always be able to access The Temple for a hint.)</i></html>");
         powerStartCheck = new JCheckBox("Powerful start");
-        powerStartCheck.setToolTipText("Begin the game with a few randomly selected powerups.");
+        powerStartCheck.setToolTipText("Begin the game with a few randomly selected powerups. (Dramatically speeds up randomization time.)");
         excludeJunkCheck = new JCheckBox("No junk items");
         excludeJunkCheck.setToolTipText("<html>Removes all useless treasures from the game, replacing them with empty chests.<br>" +
                 "<i>(You can use the magnifying glass or pause menu to check which chests are empty.)</i></html>");
