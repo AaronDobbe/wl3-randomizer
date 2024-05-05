@@ -2690,7 +2690,8 @@ public class Main {
         else if (level.equals("S1")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE);
+					// The MINOR GLITCHES Logic for the Tree Interior Region can also apply to Main Area - Left Tree.
+                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE) || difficulty >= Difficulty.S_HARD;
                 }
                 else if (location == 2) {
                     return inventory.contains(Items.BEANSTALK_SEEDS);
