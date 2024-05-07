@@ -3128,9 +3128,12 @@ public class Main {
 				* You can do a Double Bear Bounce from the starting area to reach this region. 
 				* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
 				* The Boots and Golden Glove are both required to perform this execution.
+				* Added HARD logic to the Blue Hub Room as well. 
+				* These checks can be reached without the Helmet by performing very precise dashes to create footholds in the middle set of blocks.
+				& This also puts the MERCILESS execution in logic without the Helmet as well.
 				*/ 
-                return inventory.contains(Items.SPIKED_HELMET)
-					&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+                return ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+					&& (inventory.contains(Items.SPIKED_HELMET) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))))
 						|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
 							&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
