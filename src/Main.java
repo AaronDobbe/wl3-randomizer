@@ -2653,7 +2653,9 @@ public class Main {
                 }
                 else {
                     if (location == 2) {
-                        return inventory.contains(Items.JUMP_BOOTS);
+						// MERCILESS Logic added for Platforming Challenge - Right. 
+						// This is done with walljumps, but there is a single tile walljump along the way to reach this check.
+                        return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.MERCILESS;
                     }
                     else {
                         return inventory.contains(Items.JUMP_BOOTS)
