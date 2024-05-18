@@ -1874,8 +1874,14 @@ public class Main {
         }
         else if (location.equals("E1R")) {
             return canAccess("E1", inventory)
+				/*
+				* HARD logic added to the E1 Red Chest. It can be obtained without the Super Flippers with just regular Flippers.
+				* Pedal upwards repeatedly while in the water and time jumps in a rhythm. 
+				* A bit of headway will be gained each time rhythm is kept, and this will also skip the boss fight.
+				*/
                     && inventory.contains(Items.STONE_FOOT)
-                    && (canGP(inventory) || (canSuperSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)));
+                    && (canGP(inventory) 
+						|| (inventory.contains(Items.JUMP_BOOTS) && (canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory))));
         }
         else if (location.equals("E1G")) {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
