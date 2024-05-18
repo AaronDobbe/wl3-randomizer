@@ -2652,7 +2652,13 @@ public class Main {
                     return inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-                    if (location == 2) {
+					if (location == 1) {
+						// MERCILESS Logic added for Platforming Challenge - Left.
+						// This is done with walljumps, but there is a single tile walljump required to reach this check.
+						return (inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.SPIKED_HELMET))
+							|| difficulty >= Difficulty.MERCILESS;
+					}
+                    else if (location == 2) {
 						// MERCILESS Logic added for Platforming Challenge - Right. 
 						// This is done with walljumps, but there is a single tile walljump along the way to reach this check.
                         return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.MERCILESS;
@@ -3184,7 +3190,7 @@ public class Main {
                     else if (difficulty <= Difficulty.HARD) {
                         // require lift to get through walls but allow jellybob manip
                         return canLift(inventory) &&
-                                (canGP(inventory) || inventory.contains(Items.SPIKED_HELMET));
+                            (canGP(inventory) || inventory.contains(Items.SPIKED_HELMET));
                     }
                     else {
                         return canGP(inventory) || inventory.contains(Items.SPIKED_HELMET);
