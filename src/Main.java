@@ -2102,7 +2102,10 @@ public class Main {
                         (difficulty > Difficulty.EASY && inventory.contains(Items.GARLIC));
             }
             else if (region == 0x14) {
-                return canLift(inventory) && (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS));
+				// Added a check for MINOR GLITCHES to reach Starting Area - Treetops without a Glove, using just Boots.
+				// Done by either doing a Reverse high walljump after breaking the top set of blocks below, or with a dashjump wallclip.
+                return (canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+					|| (difficulty >= Difficulty.S_HARD && (canLift(inventory) || inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x17) {
                 return canSwim(inventory);
