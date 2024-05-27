@@ -1593,20 +1593,27 @@ public class Main {
         }
         else if (location.equals("W2R")) {
             return canAccess("W2", inventory)
-                    && inventory.contains(Items.WHEELS);
+				/*
+				* The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
+				* Then do a midair enemy bounce to reach the platforms leading to the Golf.
+				* Finally, navigate rightwards while avoiding any other hazards on the way to reach the Red Chest.
+				*/
+                    && inventory.contains(Items.WHEELS)
+						|| (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W2G")) {
 			/*
 			* Added MERCILESS logic to W2G.
 			* Use Ladder Scrolling. Once screen wrapped, jump on the bottom trolley, and high bounce off the first Firebot.
 			* This skips the need for a Glove when compared to HARD.
+			* The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
+			* The same enemy bounce from HARD can then be used to reach the Golf that leads to the chest.
 			*/
             return canAccess("W2", inventory)
-                    && inventory.contains(Items.WHEELS)
-                    && (inventory.contains(Items.FLUTE)
-                        || (difficulty >= Difficulty.HARD
-                            && inventory.contains(Items.JUMP_BOOTS)
-                            && (difficulty >= Difficulty.MERCILESS || canLift(inventory))));
+                    && (inventory.contains(Items.WHEELS) && inventory.contains(Items.FLUTE))
+						|| (difficulty >= Difficulty.HARD && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+                        || (difficulty >= Difficulty.MERCILESS && inventory.contains (Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W2B")) {
             return canAccess("W2", inventory)
@@ -2007,9 +2014,11 @@ public class Main {
                     && canLift(inventory);
         }
         else if (location.equals("E6B")) {
+			// To reach the Blue Chest without Boots, use a Pneumo to turn Wario allergic in the main area and float upwards into this room.
             return canAccess("E6", inventory)
                     && inventory.contains(Items.PICKAXE)
-                    && canLift(inventory);
+                    && canLift(inventory)
+					&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("E7S")) {
             return canAccess("E7", inventory);
@@ -2418,7 +2427,25 @@ public class Main {
         }
         else if (level.equals("W2")) {
             if (region == 0x1) {
-                if (location == 1 && difficulty > Difficulty.EASY) {
+				if (location == 0) {
+					/*
+					* The MINOR GLITCHES execution for Sky - Near Snake Pot involves performing a big dashjump wallclip from the deactivated Trolley.
+					* Then do a midair enemy bounce to reach the platforms leading to the Golf.
+					* Finally, navigate rightwards and reach the check as normal.
+					*/
+					return (inventory.contains(Items.WHEELS)
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
+				}
+				else if (location == 2) {
+					/*
+					* For Sky - Below Center Ledge, perform a big dashjump wallclip from the deactivated trolley to reach 
+					* the platform containing the first Firebot. From there, navigate rightwards
+					* to the lower ledge and perform a precise dashjump to reach this check.
+					*/
+					return (inventory.contains(Items.WHEELS)
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS));
+				}
+                else if (location == 1 && difficulty > Difficulty.EASY) {
                     return true;
                 }
                 else {
@@ -2439,11 +2466,19 @@ public class Main {
                 return inventory.contains(Items.STONE_FOOT) && canSwim(inventory);
             }
             else if (region == 0xa) {
+				/*
+				* The MINOR GLITCHES for the Flooded Vampire Room checks involves performing a big dashjump wallclip from the deactivated Trolley.
+				* Then do a midair enemy bounce to reach the platforms leading to the Golf.
+				* Finally, navigate rightwards and reach the check as normal.
+				*/
                 if (location == 0) {
-                    return inventory.contains(Items.WHEELS);
+                    return inventory.contains(Items.WHEELS)
+						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
                 }
                 else {
-                    return inventory.contains(Items.WHEELS) && canSwim(inventory);
+                    return canSwim(inventory) 
+						&& (inventory.contains(Items.WHEELS) 
+							|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)));
                 }
             }
             else if (region == 0x14) {
@@ -2683,11 +2718,11 @@ public class Main {
 				* Added MERCILESS Logic to the checks in the Vent Room.
 				* Perform the MINOR GLITCHES logic to reach Main Area - Excavate Right.
 				* Afterwards, do a single tile High Walljump. Requires the Helmet and Boots, skips the need for the Rust Spray.
+				* If you have the Rust Spray, this is reachable without Boots on MERCILESS Difficulty as well, using a single-tile walljump.
 				*/
                 if (location == 2) {
-                    return inventory.contains(Items.JUMP_BOOTS) 
-						&& (inventory.contains(Items.RUST_SPRAY) 
-							|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.SPIKED_HELMET)));
+                    return (inventory.contains(Items.RUST_SPRAY) && (difficulty >= Difficulty.MERCILESS || inventory.contains(Items.JUMP_BOOTS)))
+							|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET));
                 }
                 else {
 					// The NORMAL logic added for the Throw Block checks is to use Fat Wario to reach the Golf required as opposed to Overalls.
@@ -3184,7 +3219,15 @@ public class Main {
 						&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x18) {
-                return canLift(inventory);
+				if (location == 2) {
+					// NORMAL logic added for Hammerbot Room - Upper Right.
+					// You still need to get hit by the Hammerbot, but you have to sneak under a spike while springing and can't lift the Hammerbot.
+					return canSuperLift(inventory)
+						|| (difficulty > Difficulty.EASY && canLift(inventory));
+				}
+				else {
+					return canLift(inventory);
+				}
             }
         }
         else if (level.equals("E6")) {
@@ -3221,7 +3264,10 @@ public class Main {
                 }
             }
             else if (region == 0x11) {
-                return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+				// MINOR GLITCHES logic added for Smasher Room.
+				// Wallclip to climb over the barriers that you'd need to throw barrels at.
+                return inventory.contains(Items.FIRE_EXTINGUISHER)
+					&& (canLift(inventory) || difficulty >= Difficulty.S_HARD);
             }
             else if (region == 0x14) {
                 return (difficulty >= Difficulty.S_HARD || canLift(inventory))
@@ -3231,13 +3277,18 @@ public class Main {
 				/* 
 				/ Added MERCILESS logic to Barrel Puzzle Room - Upper Floor Near Start.
 				/ You can use a Single Tile Walljump to escape the spot without needing Boots.
+				/ The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
+				/ A Glove check has been added here to EASY Difficulty, which is to break the Throw Blocks traditionally.
 				*/
                 if (location == 0) {
                     return inventory.contains(Items.PICKAXE) 
+						&& (difficulty > Difficulty.EASY || canLift(inventory))
 						&& (difficulty >= Difficulty.MERCILESS || inventory.contains(Items.JUMP_BOOTS));
                 }
                 else {
-                    return inventory.contains(Items.PICKAXE) && canLift(inventory);
+					// The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
+                    return inventory.contains(Items.PICKAXE) && canLift(inventory)
+						&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
                 }
             }
         }
