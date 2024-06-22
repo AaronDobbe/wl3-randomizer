@@ -1888,7 +1888,7 @@ public class Main {
 				*/
                     && inventory.contains(Items.STONE_FOOT)
                     && (canGP(inventory) 
-						|| (inventory.contains(Items.JUMP_BOOTS) && (canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory))));
+						|| (inventory.contains(Items.JUMP_BOOTS) && ((canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
         }
         else if (location.equals("E1G")) {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
@@ -1982,9 +1982,8 @@ public class Main {
 			* A Glove check has been added specifically for the Key Cards option since that option strictly requires having a Glove.
 			*/ 
             return canAccess("E5", inventory)
-                    && ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory)) 
-						|| inventory.contains(Items.WARP_REMOTE))
-							&& (difficulty >= Difficulty.MERCILESS || canLift(inventory));
+                && (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+					|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
         }
         else if (location.equals("E5B")) {
             /*
@@ -2350,8 +2349,8 @@ public class Main {
 			* This is for the Boss Room - Above Silver Chest check.
 			*/
                 return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
-                        && canSwim(inventory)
-                            || (difficulty >= Difficulty.HARD
+                        && (canSwim(inventory) 
+							|| (difficulty >= Difficulty.HARD
                                 && (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD)));
             }
             else if (region == 0x6) {
@@ -2433,7 +2432,7 @@ public class Main {
 					* Then do a midair enemy bounce to reach the platforms leading to the Golf.
 					* Finally, navigate rightwards and reach the check as normal.
 					*/
-					return (inventory.contains(Items.WHEELS)
+					return inventory.contains(Items.WHEELS)
 						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
 				}
 				else if (location == 2) {
@@ -2442,7 +2441,7 @@ public class Main {
 					* the platform containing the first Firebot. From there, navigate rightwards
 					* to the lower ledge and perform a precise dashjump to reach this check.
 					*/
-					return (inventory.contains(Items.WHEELS)
+					return inventory.contains(Items.WHEELS)
 						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS));
 				}
                 else if (location == 1 && difficulty > Difficulty.EASY) {
@@ -2780,10 +2779,11 @@ public class Main {
 				* Do this twice with the rightmost Spearhead so that it reaches the area above the Blue Chest. 
 				* From there, High Jump off of the Spearhead to reach the area as normal.
 				*/
-            return (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)
-						|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
-            // Secret Attic will never be required on Easy. Hard may require you to nudge enemies up to the top
-            // without a glove
+            return difficulty > Difficulty.EASY 
+				&& inventory.contains(Items.JUMP_BOOTS) 
+					&& (canLift(inventory) || (difficulty >= Difficulty.HARD));
+				// Secret Attic will never be required on Easy. Hard may require you to nudge enemies up to the top
+				// without a glove
                 }
             }
         }
@@ -2907,19 +2907,21 @@ public class Main {
 				* One last regular Highjump will then reach this check.
 				*/
 				if (location == 0) {
-					return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS)
+					return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory)
                         && (canLift(inventory) || difficulty >= Difficulty.S_HARD);
 				}
 				else {
 					return inventory.contains(Items.RUST_SPRAY) 
-						  && inventory.contains(Items.JUMP_BOOTS)
-              && canLift(inventory);
+						&& inventory.contains(Items.JUMP_BOOTS)
+						&& canGP(inventory)
+						&& canLift(inventory);
 				}
 			}
 			else if (region == 0x3) {
-                  return inventory.contains(Items.RUST_SPRAY) 
-                  && canLift(inventory)
-                  && inventory.contains(Items.JUMP_BOOTS);
+                return inventory.contains(Items.RUST_SPRAY)
+					&& canGP (inventory)
+					&& canLift(inventory)
+					&& inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x6) {
 				/*
@@ -3195,9 +3197,8 @@ public class Main {
 				* This is reached by doing a single-tile walljump to scale the bottom set of throw blocks after entering the area.
 				* A Glove check has been added specifically for the Key Cards option since that option strictly requires having a Glove.
 				*/ 
-                return ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory)) 
-							|| ((inventory.contains(Items.WARP_REMOTE))
-							&& (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
+                return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+						|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
 			}
 			else if (region == 0x7) {
 				return canLift(inventory)
