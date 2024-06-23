@@ -1593,13 +1593,13 @@ public class Main {
         }
         else if (location.equals("W2R")) {
             return canAccess("W2", inventory)
-				/*
-				* The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
-				* Then do a midair enemy bounce to reach the platforms leading to the Golf.
-				* Finally, navigate rightwards while avoiding any other hazards on the way to reach the Red Chest.
-				*/
+			/*
+			* The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
+			* Then do a midair enemy bounce to reach the platforms leading to the Golf.
+			* Finally, navigate rightwards while avoiding any other hazards on the way to reach the Red Chest.
+			*/
                     && inventory.contains(Items.WHEELS)
-						|| (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+			|| (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W2G")) {
 			/*
@@ -1611,8 +1611,8 @@ public class Main {
 			*/
             return canAccess("W2", inventory)
                     && (inventory.contains(Items.WHEELS) && inventory.contains(Items.FLUTE))
-						|| (difficulty >= Difficulty.HARD && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
-						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+			|| (difficulty >= Difficulty.HARD && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+			|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
                         || (difficulty >= Difficulty.MERCILESS && inventory.contains (Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W2B")) {
@@ -1632,10 +1632,10 @@ public class Main {
 		*/
             return canAccess("W3", inventory)
                 && (canGP(inventory)
-					|| (difficulty >= Difficulty.HARD
-						&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
-						&& inventory.contains(Items.JUMP_BOOTS)
-                        && (difficulty >= Difficulty.S_HARD || canLift(inventory))));
+			|| (difficulty >= Difficulty.HARD
+				&& (canSwim(inventory) || inventory.contains(Items.BEANSTALK_SEEDS))
+				&& inventory.contains(Items.JUMP_BOOTS)
+                        	&& (difficulty >= Difficulty.S_HARD || canLift(inventory))));
         }
         else if (location.equals("W3R")) {
             return canAccess("W3", inventory)
@@ -1657,8 +1657,8 @@ public class Main {
 			* This execution skips the need for the Air Pump.
 			*/
             return canAccess("W3", inventory)
-                    && (inventory.contains(Items.PUMP) && canSwim(inventory))
-					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+        		&& (inventory.contains(Items.PUMP) && canSwim(inventory))
+				|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W4S")) {
             return canAccess("W4", inventory);
@@ -1672,8 +1672,8 @@ public class Main {
 			*/
             return canAccess("W4", inventory)
                     && (inventory.contains(Items.SPIKED_HELMET) 
-						|| (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
-						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+			|| (difficulty > Difficulty.EASY && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+			|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W4G")) {
 			/*
@@ -1804,10 +1804,10 @@ public class Main {
                     && inventory.contains(Items.STONE_FOOT);
         }
         else if (location.equals("S4G")) {
-			/*
-			* Added MINOR GLITCHES logic for reaching the Green Chest.
-			* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
-			*/
+		/*
+		* Added MINOR GLITCHES logic for reaching the Green Chest.
+		* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
+		*/
             return canAccess("S4", inventory)
                 && inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory)
                 && (canSuperGP(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
@@ -1831,15 +1831,15 @@ public class Main {
                     && inventory.contains(Items.DETONATOR);
         }
         else if (location.equals("S5B")) {
-			/*
-			* Added MINOR GLITCHES logic for reaching the Blue Chest.
-			* Do a regular high enemy bounce after entering the room.
-			* Next, charge towards the platform that contains the Throw Blocks.
-			* Then, charge to the left to reach the next high bounce platform.
-			* Finally, do a High Walljump to pass through the final high bounce platform.
-			* One last regular Highjump will then reach Blue Chest Room - Upper Left.
-			* To reach the Blue Chest from there, perform a high walljump from the upper left Spearbot platform.
-			*/
+		/*
+		* Added MINOR GLITCHES logic for reaching the Blue Chest.
+		* Do a regular high enemy bounce after entering the room.
+		* Next, charge towards the platform that contains the Throw Blocks.
+		* Then, charge to the left to reach the next high bounce platform.
+		* Finally, do a High Walljump to pass through the final high bounce platform.
+		* One last regular Highjump will then reach Blue Chest Room - Upper Left.
+		* To reach the Blue Chest from there, perform a high walljump from the upper left Spearbot platform.
+		*/
             return canAccess("S5", inventory)
                     && inventory.contains(Items.RUST_SPRAY)
                     && inventory.contains(Items.JUMP_BOOTS)
@@ -1851,10 +1851,10 @@ public class Main {
         }
         else if (location.equals("S6R")) {
             return canAccess("S6", inventory)
-				/*
-				* Downgraded S6R logic without a Glove from MINOR GLITCHES to NORMAL.
-				* You just need to break the block, exit the room, then use the other entrance to reach the chest without needing a High Walljump.
-				*/
+			/*
+			* Downgraded S6R logic without a Glove from MINOR GLITCHES to NORMAL.
+			* You just need to break the block, exit the room, then use the other entrance to reach the chest without needing a High Walljump.
+			*/
                     && inventory.contains(Items.JUMP_BOOTS)
                     && ((difficulty > Difficulty.EASY && inventory.contains(Items.SPIKED_HELMET)) || canLift(inventory))
                     && (difficulty >= Difficulty.HARD || inventory.contains(Items.SPIKED_HELMET));
@@ -1872,9 +1872,9 @@ public class Main {
 			* The soft reset can occur either immediately before entering the stage or after a suspend save.
 			*/
             return canAccess("S6", inventory)
-				&& inventory.contains(Items.JUMP_BOOTS)
-                && ((inventory.contains(Items.GONG) && inventory.contains(Items.SCISSORS) && canSuperGP(inventory) && canLift(inventory))
-					|| (dayOnly && difficulty >= Difficulty.MERCILESS));
+		&& inventory.contains(Items.JUMP_BOOTS)
+                	&& ((inventory.contains(Items.GONG) && inventory.contains(Items.SCISSORS) && canSuperGP(inventory) && canLift(inventory))
+			|| (dayOnly && difficulty >= Difficulty.MERCILESS));
         }
         else if (location.equals("E1S")) {
             return canAccess("E1", inventory);
@@ -1888,13 +1888,13 @@ public class Main {
 				*/
                     && inventory.contains(Items.STONE_FOOT)
                     && (canGP(inventory) 
-						|| (inventory.contains(Items.JUMP_BOOTS) && ((canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
+			|| (inventory.contains(Items.JUMP_BOOTS) && ((canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
         }
         else if (location.equals("E1G")) {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
             return canAccess("E1", inventory)
                     && inventory.contains(Items.STONE_FOOT)
-					&& (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD);
+			&& (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD);
         }
         else if (location.equals("E1B")) {
 			/*
@@ -1906,7 +1906,7 @@ public class Main {
 			*/
             return canAccess("E1", inventory)
                 && ((inventory.contains(Items.DETONATOR))
-					|| (difficulty >= Difficulty.MERCILESS && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET)));
+			|| (difficulty >= Difficulty.MERCILESS && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET)));
         }
         else if (location.equals("E2S")) {
             return canAccess("E2", inventory);
@@ -1932,7 +1932,7 @@ public class Main {
 			*/
             return canAccess("E2", inventory)
                     && (dayOnly || canSuperSwim(inventory)
-					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC)));
+			|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC)));
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
@@ -1983,19 +1983,19 @@ public class Main {
 			*/ 
             return canAccess("E5", inventory)
                 && (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-					|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
+			|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
         }
         else if (location.equals("E5B")) {
-            /*
-			* Added MERCILESS logic for this chest. 
-			* You can do a Double Bear Bounce from the starting area to reach this region. 
-			* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
-			* The Boots and Golden Glove are both required to perform this execution.
-			*/ 
-			return canAccess("E5", inventory)
-				&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-				|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-					&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+        	/*
+		* Added MERCILESS logic for this chest. 
+		* You can do a Double Bear Bounce from the starting area to reach this region. 
+		* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+		* The Boots and Golden Glove are both required to perform this execution.
+		*/ 
+		return canAccess("E5", inventory)
+			&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+			|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+				&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)
@@ -2240,14 +2240,14 @@ public class Main {
                 return canSuperSwim(inventory);
             }
             else if (region == 0x12) {
-				/*
-				* Added NORMAL and MINOR GLITCHES logic to the Torch Room - Above Rock Check.
-				* NORMAL: Do a charge and then a well timed jump from the middle platform at the bottom to reach this.
-				* MINOR GLITCHES: Do a well timed highjump waterclip to reach the Bat room without the Air Pump.
-				* This can be reached by extension as long as you have access to the Bat Room.
-				*/
+		/*
+		* Added NORMAL and MINOR GLITCHES logic to the Torch Room - Above Rock Check.
+		* NORMAL: Do a charge and then a well timed jump from the middle platform at the bottom to reach this.
+		* MINOR GLITCHES: Do a well timed highjump waterclip to reach the Bat room without the Air Pump.
+		* This can be reached by extension as long as you have access to the Bat Room.
+		*/
                 return ((difficulty >= Difficulty.S_HARD && canSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)) || inventory.contains(Items.PUMP)) 
-					&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
+			&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x15) {
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
@@ -2257,31 +2257,31 @@ public class Main {
                 return inventory.contains(Items.GARLIC) && (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
             else if (region == 0x17) {
-				/*
-				* Added MINOR GLITCHES logic to the Bat Room region.
-				* Do a well timed highjump waterclip from the starting area to reach this region without the Air Pump.
-				* This requires Flippers and Boots to be able to execute.
-				*/
+		/*
+		* Added MINOR GLITCHES logic to the Bat Room region.
+		* Do a well timed highjump waterclip from the starting area to reach this region without the Air Pump.
+		* This requires Flippers and Boots to be able to execute.
+		*/
                 return (difficulty >= Difficulty.S_HARD && canSwim(inventory) && inventory.contains(Items.JUMP_BOOTS)) || inventory.contains(Items.PUMP);
             }
             else if (region == 0x1d) {
-				/*
-				* Added MINOR GLITCHES logic to the Inside Third Hill check.
-				* The Glove can be skipped by using a High Walljump, when compared to the HARD Logic execution.
-				*/
+		/*
+		* Added MINOR GLITCHES logic to the Inside Third Hill check.
+		* The Glove can be skipped by using a High Walljump, when compared to the HARD Logic execution.
+		*/
                 return canSwim(inventory) 
-					|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)
-						&& (difficulty >= Difficulty.S_HARD || canLift(inventory)));
+			|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)
+				&& (difficulty >= Difficulty.S_HARD || canLift(inventory)));
             }
         }
         else if (level.equals("N5")) {
             if (region == 0x1) {
                 if (location == 1) {
-				/*
-				* Added MERCILESS logic to this check. Use Water Scrolling to screen wrap upwards.
-				* You can then go across the top to reach this check without Garlic.
-				* This only works at night since the water level is higher at night.
-				*/
+		/*
+		* Added MERCILESS logic to this check. Use Water Scrolling to screen wrap upwards.
+		* You can then go across the top to reach this check without Garlic.
+		* This only works at night since the water level is higher at night.
+		*/
                     return (inventory.contains(Items.GARLIC)
 						|| (difficulty >= Difficulty.MERCILESS && !daytime && canSwim(inventory)));
                 }
@@ -2343,14 +2343,14 @@ public class Main {
                 }
             }
             else if (region == 0x5) {
-			/*
-			* New addition for this check for MINOR GLITCHES. 
-			* You can skip the need for Boots using a Walljump when compared to HARD.
-			* This is for the Boss Room - Above Silver Chest check.
-			*/
+		/*
+		* New addition for this check for MINOR GLITCHES. 
+		* You can skip the need for Boots using a Walljump when compared to HARD.
+		* This is for the Boss Room - Above Silver Chest check.
+		*/
                 return inventory.contains(Items.GARLIC) && inventory.contains(Items.SPIKED_HELMET) && canGP(inventory)
                         && (canSwim(inventory) 
-							|| (difficulty >= Difficulty.HARD
+				|| (difficulty >= Difficulty.HARD
                                 && (inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.S_HARD)));
             }
             else if (region == 0x6) {
@@ -2465,19 +2465,19 @@ public class Main {
                 return inventory.contains(Items.STONE_FOOT) && canSwim(inventory);
             }
             else if (region == 0xa) {
-				/*
-				* The MINOR GLITCHES for the Flooded Vampire Room checks involves performing a big dashjump wallclip from the deactivated Trolley.
-				* Then do a midair enemy bounce to reach the platforms leading to the Golf.
-				* Finally, navigate rightwards and reach the check as normal.
-				*/
+		/*
+		* The MINOR GLITCHES for the Flooded Vampire Room checks involves performing a big dashjump wallclip from the deactivated Trolley.
+		* Then do a midair enemy bounce to reach the platforms leading to the Golf.
+		* Finally, navigate rightwards and reach the check as normal.
+		*/
                 if (location == 0) {
                     return inventory.contains(Items.WHEELS)
-						|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
+			|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory));
                 }
                 else {
                     return canSwim(inventory) 
-						&& (inventory.contains(Items.WHEELS) 
-							|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)));
+			&& (inventory.contains(Items.WHEELS) 
+				|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)));
                 }
             }
             else if (region == 0x14) {
@@ -2491,21 +2491,21 @@ public class Main {
                             || (difficulty >= Difficulty.HARD && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
                 }
                 else if (location == 1) {
-					/*
-					* Additional HARD Logic added for this check, which is Main Area - Top Center.
-					* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
-					* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
-					* then do a midair enemy bounce using the Paragoom.
-					* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
-					* Then go across the 2nd set of pipes and do the same midair enemy bounce using the Paragoom.
-					* The latter option can only be in logic if this check is specifically the Grey or Red Keys.
-					* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
-					*/
+			/*
+			* Additional HARD Logic added for this check, which is Main Area - Top Center.
+			* With Flippers or Beanstalk Seeds, Glove, and Boots, you can access this without Overalls.
+			* If no Beanstalk Seeds, Swim beyond the first two sets of pipes in the main area,
+			* then do a midair enemy bounce using the Paragoom.
+			* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
+			* Then go across the 2nd set of pipes and do the same midair enemy bounce using the Paragoom.
+			* The latter option can only be in logic if this check is specifically the Grey or Red Keys.
+			* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
+			*/
                     return canGP(inventory)
-						|| (difficulty >= Difficulty.HARD
-							&& ((canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS)))
-                            && canLift(inventory)
-                            && inventory.contains(Items.JUMP_BOOTS)));
+			|| (difficulty >= Difficulty.HARD
+				&& ((canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS)))
+                		&& canLift(inventory)
+                        	&& inventory.contains(Items.JUMP_BOOTS)));
                 }
                 else if (location == 2) {
                     return canSwim(inventory);
@@ -2529,19 +2529,19 @@ public class Main {
                 return inventory.contains(Items.BEANSTALK_SEEDS);
             }
             else if (region == 0x1a) {
-				/*
-				* Added MERCILESS logic to this region.
-				* From Main Area - Top Center, use a Throw + Dashjump wallclip to reach the top of the area on the left side. 
-				* Next, do a charge to the right and jump. You should screen scroll down and land on the 4th pipe. 
-				* Do a High Jump from the 4th pipe over to the 6th pipe, then do another High Jump from the 6th pipe to the 5th pipe. 
-				* If done right, walk off the left side of the 5th pipe, then Press Up. 
-				* If you are placed at the door that is underwater, press up again to enter this region, which is the Jellyfish Room.
-				* Note, a Soft Reset is required. Do this soft reset after making a suspend save before the Throw + Dashjump wallclip. 
-				* This execution skips the need for the Air Pump.
-				*/
+		/*
+		* Added MERCILESS logic to this region.
+		* From Main Area - Top Center, use a Throw + Dashjump wallclip to reach the top of the area on the left side. 
+		* Next, do a charge to the right and jump. You should screen scroll down and land on the 4th pipe. 
+		* Do a High Jump from the 4th pipe over to the 6th pipe, then do another High Jump from the 6th pipe to the 5th pipe. 
+		* If done right, walk off the left side of the 5th pipe, then Press Up. 
+		* If you are placed at the door that is underwater, press up again to enter this region, which is the Jellyfish Room.
+		* Note, a Soft Reset is required. Do this soft reset after making a suspend save before the Throw + Dashjump wallclip. 
+		* This execution skips the need for the Air Pump.
+		*/
                 return (inventory.contains(Items.PUMP) && canSwim(inventory))
-					|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
-						&& (canSwim(inventory) || keyColor == 3));
+			|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
+				&& (canSwim(inventory) || keyColor == 3));
             }
         }
         else if (level.equals("W4")) {
@@ -2549,25 +2549,25 @@ public class Main {
                 return true;
             }
             else if (region == 0x5) {
-				if (location == 1) {
-					/*
-					* Added MERCILESS Logic for this region, which is Switch Puzzle Main.
-					* You can use Ladder Scrolling to skip the need for the Golden Glove and the Boots 
-					* when compared to MINOR GLITCHES.
-					*/
-					return ((difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
-						&& (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
-						&& canSuperGP(inventory))
-						/*
-						* Alternative execution for MINOR GLITCHES, which can be done without Red Overalls.
-						* Line up with the proper pixel, then do a Reverse High Walljump
-						* to break the blocks that lead to this check, which is Switch Puzzle Main - Lower Left.
-						*/
-							|| (difficulty >= Difficulty.S_HARD 
-								&& inventory.contains(Items.JUMP_BOOTS) 
-								&& inventory.contains(Items.SPIKED_HELMET)
-								&& (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory)));
-				}
+		if (location == 1) {
+		/*
+		* Added MERCILESS Logic for this region, which is Switch Puzzle Main.
+		* You can use Ladder Scrolling to skip the need for the Golden Glove and the Boots 
+		* when compared to MINOR GLITCHES.
+		*/
+			return ((difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
+				&& (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
+				&& canSuperGP(inventory))
+				/*
+				* Alternative execution for MINOR GLITCHES, which can be done without Red Overalls.
+				* Line up with the proper pixel, then do a Reverse High Walljump
+				* to break the blocks that lead to this check, which is Switch Puzzle Main - Lower Left.
+				*/
+					|| (difficulty >= Difficulty.S_HARD 
+						&& inventory.contains(Items.JUMP_BOOTS) 
+						&& inventory.contains(Items.SPIKED_HELMET)
+						&& (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory)));
+		}
                 return (difficulty >= Difficulty.MERCILESS || canSuperLift(inventory))
 						&& (difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS))
 						&& canSuperGP(inventory);
@@ -2580,24 +2580,24 @@ public class Main {
                     return true;
                 }
                 else {
-					/*
-					* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
-					* I also added a MINOR GLITCHES alternative for this check. 
-					* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
-					* Then use a high walljump to escape out of the pit. 
-					* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
-					*/
+		/*
+		* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
+		* I also added a MINOR GLITCHES alternative for this check. 
+		* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
+		* Then use a high walljump to escape out of the pit. 
+		* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
+		*/
                     return canSuperGP(inventory)
                         && (inventory.contains(Items.SPIKED_HELMET)
                             || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
-							|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+				|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
             else if (region == 0x16) {
-				/*
-				* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 1 - Upper Right.
-				* If you use Ladder Scrolling to reach the region, only a regular glove is needed to get this check.
-				*/
+		/*
+		* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 1 - Upper Right.
+		* If you use Ladder Scrolling to reach the region, only a regular glove is needed to get this check.
+		*/
                 return canSuperLift(inventory)
 					|| (difficulty >= Difficulty.MERCILESS && canLift(inventory));
             }
@@ -2610,20 +2610,20 @@ public class Main {
                 }
             }
             else if (region == 0x19) {
-				/*
-				* Added MINOR GLITCHES logic for this check, which is Zombie Room - Below Third Platform.
-				* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
-				*/
+		/*
+		* Added MINOR GLITCHES logic for this check, which is Zombie Room - Below Third Platform.
+		* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
+		*/
                 return inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS)
-					|| difficulty >= Difficulty.S_HARD;
+			|| difficulty >= Difficulty.S_HARD;
             }
             else if (region == 0x1c) {
-				/*
-				* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 2 - Upper Right.
-				* If you use Ladder Scrolling to reach the region, only the Red Overalls are needed to get this check.
-				*/
+		/*
+		* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 2 - Upper Right.
+		* If you use Ladder Scrolling to reach the region, only the Red Overalls are needed to get this check.
+		*/
                 return canSuperGP(inventory)
-					&& (canSuperLift(inventory) || difficulty >= Difficulty.MERCILESS);
+			&& (canSuperLift(inventory) || difficulty >= Difficulty.MERCILESS);
             }
         }
         else if (level.equals("W5")) {
@@ -2684,10 +2684,10 @@ public class Main {
                 }
             }
             else if (region == 0x4) {
-				/* 
-				* Added a check for MERCILESS difficulty for reaching the Green Chest Area (Platforming Challenge) without the Fire Extinguisher.
-				* This area is reached on MERCILESS difficulty via Ladder Scrolling after using I-Frames to pass the first 2 fires.
-				*/ 
+		/* 
+		* Added a check for MERCILESS difficulty for reaching the Green Chest Area (Platforming Challenge) without the Fire Extinguisher.
+		* This area is reached on MERCILESS difficulty via Ladder Scrolling after using I-Frames to pass the first 2 fires.
+		*/ 
                 if (!inventory.contains(Items.FIRE_EXTINGUISHER) && difficulty < Difficulty.MERCILESS) {
                     return false;
                 }
@@ -2695,15 +2695,15 @@ public class Main {
                     return inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-					if (location == 1) {
-						// MERCILESS Logic added for Platforming Challenge - Left.
-						// This is done with walljumps, but there is a single tile walljump required to reach this check.
-						return (inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.SPIKED_HELMET))
-							|| difficulty >= Difficulty.MERCILESS;
-					}
-                    else if (location == 2) {
-						// MERCILESS Logic added for Platforming Challenge - Right. 
-						// This is done with walljumps, but there is a single tile walljump along the way to reach this check.
+			if (location == 1) {
+			// MERCILESS Logic added for Platforming Challenge - Left.
+			// This is done with walljumps, but there is a single tile walljump required to reach this check.
+			return (inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.SPIKED_HELMET))
+				|| difficulty >= Difficulty.MERCILESS;
+			}
+        	else if (location == 2) {
+			// MERCILESS Logic added for Platforming Challenge - Right. 
+			// This is done with walljumps, but there is a single tile walljump along the way to reach this check.
                         return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.MERCILESS;
                     }
                     else {
@@ -2713,22 +2713,22 @@ public class Main {
                 }
             }
             else if (region == 0x8) {
-				/*
-				* Added MERCILESS Logic to the checks in the Vent Room.
-				* Perform the MINOR GLITCHES logic to reach Main Area - Excavate Right.
-				* Afterwards, do a single tile High Walljump. Requires the Helmet and Boots, skips the need for the Rust Spray.
-				* If you have the Rust Spray, this is reachable without Boots on MERCILESS Difficulty as well, using a single-tile walljump.
-				*/
+		/*
+		* Added MERCILESS Logic to the checks in the Vent Room.
+		* Perform the MINOR GLITCHES logic to reach Main Area - Excavate Right.
+		* Afterwards, do a single tile High Walljump. Requires the Helmet and Boots, skips the need for the Rust Spray.
+		* If you have the Rust Spray, this is reachable without Boots on MERCILESS Difficulty as well, using a single-tile walljump.
+		*/
                 if (location == 2) {
                     return (inventory.contains(Items.RUST_SPRAY) && (difficulty >= Difficulty.MERCILESS || inventory.contains(Items.JUMP_BOOTS)))
-							|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET));
+			|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET));
                 }
                 else {
-					// The NORMAL logic added for the Throw Block checks is to use Fat Wario to reach the Golf required as opposed to Overalls.
+		// The NORMAL logic added for the Throw Block checks is to use Fat Wario to reach the Golf required as opposed to Overalls.
                     return canLift(inventory)
-						&& (difficulty > Difficulty.EASY || canGP(inventory))
-						&& (inventory.contains(Items.RUST_SPRAY)
-							|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.JUMP_BOOTS)));
+			&& (difficulty > Difficulty.EASY || canGP(inventory))
+			&& (inventory.contains(Items.RUST_SPRAY)
+				|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
             else if (region == 0xa) {
@@ -2741,8 +2741,8 @@ public class Main {
         else if (level.equals("S1")) {
             if (region == 0x1) {
                 if (location == 0) {
-					// The MINOR GLITCHES Logic for the Tree Interior Region can also apply to Main Area - Left Tree.
-                    return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE) || difficulty >= Difficulty.S_HARD;
+			// The MINOR GLITCHES Logic for the Tree Interior Region can also apply to Main Area - Left Tree.
+	                return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE) || difficulty >= Difficulty.S_HARD;
                 }
                 else if (location == 2) {
                     return inventory.contains(Items.BEANSTALK_SEEDS);
@@ -2752,10 +2752,10 @@ public class Main {
                 }
             }
             else if (region == 0x9) {
-				/*
-				* Added MINOR GLITCHES Logic for the Tree Interior Region.
-				* Use a dashjump wallclip to reach the ledge leading to the doors.
-				*/
+		/*
+		* Added MINOR GLITCHES Logic for the Tree Interior Region.
+		* Use a dashjump wallclip to reach the ledge leading to the doors.
+		*/
                 return inventory.contains(Items.JUMP_BOOTS) || inventory.contains(Items.FLUTE) || difficulty >= Difficulty.S_HARD;
             }
             else if (region == 0x15) {
@@ -2772,18 +2772,18 @@ public class Main {
                     return difficulty >= Difficulty.S_HARD || inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-				/*
-				* Additional HARD Logic added for this check.
-				* Bonk off enemies just as they are becoming unstunned near a block.
-				* If done right, this will cause the enemy to gain 1 block of height.
-				* Do this twice with the rightmost Spearhead so that it reaches the area above the Blue Chest. 
-				* From there, High Jump off of the Spearhead to reach the area as normal.
-				*/
+		/*
+		* Additional HARD Logic added for this check.
+		* Bonk off enemies just as they are becoming unstunned near a block.
+		* If done right, this will cause the enemy to gain 1 block of height.
+		* Do this twice with the rightmost Spearhead so that it reaches the area above the Blue Chest. 
+		* From there, High Jump off of the Spearhead to reach the area as normal.
+		*/
             return difficulty > Difficulty.EASY 
-				&& inventory.contains(Items.JUMP_BOOTS) 
-					&& (canLift(inventory) || (difficulty >= Difficulty.HARD));
-				// Secret Attic will never be required on Easy. Hard may require you to nudge enemies up to the top
-				// without a glove
+		&& inventory.contains(Items.JUMP_BOOTS) 
+			&& (canLift(inventory) || (difficulty >= Difficulty.HARD));
+		// Secret Attic will never be required on Easy. Hard may require you to nudge enemies up to the top
+		// without a glove
                 }
             }
         }
@@ -2805,8 +2805,8 @@ public class Main {
                 }
                 else {
                     return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory)
-                            && (difficulty >= Difficulty.S_HARD ||
-                                (inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC)));
+                	&& (difficulty >= Difficulty.S_HARD ||
+                	(inventory.contains(Items.SPIKED_HELMET) && inventory.contains(Items.GARLIC)));
                 }
             }
             else if (region == 0xa) {
@@ -2831,11 +2831,11 @@ public class Main {
                 if (location == 0) { // S2 Spiders Upper Right
                     return (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)))
                         && (inventory.contains(Items.GARLIC) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)))
-						            && (canSuperGP(inventory) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+		            && (canSuperGP(inventory) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
                 else { // S2 Spiders Lower Right
                     return (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory)))
-						            && (inventory.contains(Items.GARLIC) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+		            && (inventory.contains(Items.GARLIC) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
                 }
             }
         }
@@ -2880,11 +2880,11 @@ public class Main {
                 return true;
             }
             else if (region == 0xa || region == 0x19) {
-				/* 
-				* Consolidated the Green Chest Room and Spike Maze regions.
-				* Added MINOR GLITCHES logic for the Green Chest Room and Spike Maze regions as well.
-				* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
-				*/
+		/* 
+		* Consolidated the Green Chest Room and Spike Maze regions.
+		* Added MINOR GLITCHES logic for the Green Chest Room and Spike Maze regions as well.
+		* Perform Dashjump wallclips to get through the Green Chest Room without lifting up the Togēbas.
+		*/
                 return inventory.contains(Items.STONE_FOOT) && canSuperSwim(inventory) 
 					&& (canSuperGP(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
             }
@@ -2898,56 +2898,56 @@ public class Main {
         }
         else if (level.equals("S5")) {
             if (region == 0x1) {
-				/*
-				* Added MINOR GLITCHES logic for Blue Chest Room - Upper Left.
-				* Do a regular high enemy bounce after entering the room.
-				* Next, charge towards the platform that contains the Throw Blocks.
-				* Then, charge to the left to reach the next high bounce platform.
-				* Finally, do a High Walljump to pass through the final high bounce platform.
-				* One last regular Highjump will then reach this check.
-				*/
-				if (location == 0) {
-					return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory)
-                        && (canLift(inventory) || difficulty >= Difficulty.S_HARD);
-				}
-				else {
-					return inventory.contains(Items.RUST_SPRAY) 
-						&& inventory.contains(Items.JUMP_BOOTS)
-						&& canGP(inventory)
-						&& canLift(inventory);
-				}
+		/*
+		* Added MINOR GLITCHES logic for Blue Chest Room - Upper Left.
+		* Do a regular high enemy bounce after entering the room.
+		* Next, charge towards the platform that contains the Throw Blocks.
+		* Then, charge to the left to reach the next high bounce platform.
+		* Finally, do a High Walljump to pass through the final high bounce platform.
+		* One last regular Highjump will then reach this check.
+		*/
+		if (location == 0) {
+			return inventory.contains(Items.RUST_SPRAY) && inventory.contains(Items.JUMP_BOOTS) && canGP(inventory)
+                	        && (canLift(inventory) || difficulty >= Difficulty.S_HARD);
+		}
+		else {
+			return inventory.contains(Items.RUST_SPRAY) 
+				&& inventory.contains(Items.JUMP_BOOTS)
+				&& canGP(inventory)
+				&& canLift(inventory);
 			}
-			else if (region == 0x3) {
-                return inventory.contains(Items.RUST_SPRAY)
-					&& canGP (inventory)
-					&& canLift(inventory)
-					&& inventory.contains(Items.JUMP_BOOTS);
+		}
+		else if (region == 0x3) {
+                	return inventory.contains(Items.RUST_SPRAY)
+				&& canGP (inventory)
+				&& canLift(inventory)
+				&& inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0x6) {
-				/*
-				* Added MINOR GLITCHES logic for the Smasher Room.
-				* 1. Do a regular high enemy bounce after entering the room.
-				* 2. Charge towards the platform that contains the Throw Blocks.
-				* 3. Charge to the left to reach the next high bounce platform.
-				* 4. Do a High Walljump to pass through the final high bounce platform.
-				* 5. A regular Highjump will then reach Blue Chest Room - Upper Left.
-				* 6. Jump across the gap, then do another walljump to reach the platform leading to the Smasher Room.
-				* 7. Execute the Smasher Room as normal to reach the check.
-				*/
+		/*
+		* Added MINOR GLITCHES logic for the Smasher Room.
+		* 1. Do a regular high enemy bounce after entering the room.
+		* 2. Charge towards the platform that contains the Throw Blocks.
+		* 3. Charge to the left to reach the next high bounce platform.
+		* 4. Do a High Walljump to pass through the final high bounce platform.
+		* 5. A regular Highjump will then reach Blue Chest Room - Upper Left.
+		* 6. Jump across the gap, then do another walljump to reach the platform leading to the Smasher Room.
+		* 7. Execute the Smasher Room as normal to reach the check.
+		*/
                 return inventory.contains(Items.RUST_SPRAY) 
-					&& inventory.contains(Items.JUMP_BOOTS) 
-					&& canGP(inventory)
-					&& (difficulty >= Difficulty.S_HARD || canLift(inventory));
+			&& inventory.contains(Items.JUMP_BOOTS) 
+			&& canGP(inventory)
+			&& (difficulty >= Difficulty.S_HARD || canLift(inventory));
             }
             else if (region == 0x7) {
                 if (location == 0) {
                     return inventory.contains(Items.JUMP_BOOTS);
                 }
                 else {
-					/*
-					* Added MERCILESS logic for this check, which is Main Area - Lower Right.
-					* Using Ladder Scrolling at the start, this check can be reached without a Glove.
-					*/
+		/*
+		* Added MERCILESS logic for this check, which is Main Area - Lower Right.
+		* Using Ladder Scrolling at the start, this check can be reached without a Glove.
+		*/
                     return (canLift(inventory) || difficulty >= Difficulty.MERCILESS);
                 }
             }
@@ -2959,12 +2959,12 @@ public class Main {
                 return difficulty >= Difficulty.S_HARD || inventory.contains(Items.SPIKED_HELMET);
             }
             else if (region == 0x15) {
-			// Added MINOR GLITCHES logic to reach the Water Current Room. Do a walljump to reach this region.
+		// Added MINOR GLITCHES logic to reach the Water Current Room. Do a walljump to reach this region.
                 return (inventory.contains(Items.JUMP_BOOTS)
-				|| difficulty >= Difficulty.S_HARD);
+			|| difficulty >= Difficulty.S_HARD);
             }
             else if (region == 0x18) {
-				// Added MINOR GLITCHES logic for the Invisibility Room. You can use a dashjump wallclip to reach the platform that has the pipe.
+		// Added MINOR GLITCHES logic for the Invisibility Room. You can use a dashjump wallclip to reach the platform that has the pipe.
                 return inventory.contains(Items.DETONATOR)
                         && (inventory.contains(Items.JUMP_BOOTS) || keyColor == 2 || difficulty >= Difficulty.S_HARD);
             }
@@ -2984,13 +2984,13 @@ public class Main {
                     return true;
                 }
                 else {
-					/*
-					* Added a check for MERCILESS difficulty for Outside Upper - Near Moon Door.
-					* Wrong Warp from the bottom outside area into the moon, then exit through the doors to reach this check.
-					* Note, a soft reset is required for this to work, and this wrong warp only works during the day.
-					* The soft reset can occur either immediately before entering the stage or after a suspend save.
-					*/
-                    return (inventory.contains(Items.SCISSORS) || (daytime && difficulty >= Difficulty.MERCILESS));
+			/*
+			* Added a check for MERCILESS difficulty for Outside Upper - Near Moon Door.
+			* Wrong Warp from the bottom outside area into the moon, then exit through the doors to reach this check.
+			* Note, a soft reset is required for this to work, and this wrong warp only works during the day.
+			* The soft reset can occur either immediately before entering the stage or after a suspend save.
+			*/
+                	return (inventory.contains(Items.SCISSORS) || (daytime && difficulty >= Difficulty.MERCILESS));
                 }
             }
             else if (region == 0x1c) {
@@ -3047,25 +3047,25 @@ public class Main {
                     return true;
                 }
                 else if (location == 1) {
-					/*
-					* Added MERCILESS logic to this check, which is Main Area - Above Rock.
-					* Use Water Scrolling to screen wrap upwards. The terrain available will let you reach this check.
-					*/
-                    return inventory.contains(Items.JUMP_BOOTS)
-						|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory));
+			/*
+			* Added MERCILESS logic to this check, which is Main Area - Above Rock.
+			* Use Water Scrolling to screen wrap upwards. The terrain available will let you reach this check.
+			*/
+        		return inventory.contains(Items.JUMP_BOOTS)
+				|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory));
                 }
                 else {
-					/*
-					* Added MERCILESS logic to this check, which is Main Area - Lower Right.
-					* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
-					* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
-					* Go just left to the wall you hit without crouching. 
-					* Then, do an in-map save to set your position to the bottom of the pool. 
-					* Charge and immediately crouch to get past the crouch space to reach this check without dayTime or Super Flippers. 
-					* Note, make sure you're holding neutral when the crouch charge ends.
-					*/
-                    return daytime || canSuperSwim(inventory)
-						|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));
+			/*
+			* Added MERCILESS logic to this check, which is Main Area - Lower Right.
+			* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
+			* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
+			* Go just left to the wall you hit without crouching. 
+			* Then, do an in-map save to set your position to the bottom of the pool. 
+			* Charge and immediately crouch to get past the crouch space to reach this check without dayTime or Super Flippers. 
+			* Note, make sure you're holding neutral when the crouch charge ends.
+			*/
+        		return daytime || canSuperSwim(inventory)
+				|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));
                 }
             }
             else if (region == 0x6 || region == 0x17) {
@@ -3081,17 +3081,17 @@ public class Main {
                 return inventory.contains(Items.PURITY_STAFF) && canSwim(inventory) && inventory.contains(Items.SPIKED_HELMET);
             }
             else if (region == 0x1A) {
-				/*
-					* Added MERCILESS logic to this region, which is the Blue Chest Area.
-					* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
-					* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
-					* Go just left to the wall you hit without crouching. 
-					* Then, do a suspend save to set your position to the bottom of the pool. 
-					* Charge and immediately crouch to get past the crouch space. Make sure you're holding neutral when the crouch charge ends.
-					* Finally, jump up to get past the current and climb the ladder to reach this region without dayTime or Super Flippers.
-				*/
+		/*
+		* Added MERCILESS logic to this region, which is the Blue Chest Area.
+		* Use Water Scrolling to screen wrap upwards, then use the terrain to collect Main Area - Above Rock. 
+		* Next, get hit by the Polar Bear closest to the rock and have it send you to the right. 
+		* Go just left to the wall you hit without crouching. 
+		* Then, do a suspend save to set your position to the bottom of the pool. 
+		* Charge and immediately crouch to get past the crouch space. Make sure you're holding neutral when the crouch charge ends.
+		* Finally, jump up to get past the current and climb the ladder to reach this region without dayTime or Super Flippers.
+		*/
                 return daytime || canSuperSwim(inventory)
-					|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));
+			|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC));
             }
         }
         else if (level.equals("E3")) {
@@ -3110,12 +3110,12 @@ public class Main {
                 return canSuperLift(inventory);
             }
             else if (region == 0x7) {
-				/*
-				* Added MINOR GLITCHES logic to this region, the E3 Spike Maze.
-				* These checks can be accessed without a Glove by grabbing the right-side owl and dismounting while clipped into the platforms.
-				* You can then use the spikes to damage boost to the other owl and then reach the checks as normal.
-				* In essence, this is an extension of the MINOR GLITCHES execution for the starting room.
-				*/
+		/*
+		* Added MINOR GLITCHES logic to this region, the E3 Spike Maze.
+		* These checks can be accessed without a Glove by grabbing the right-side owl and dismounting while clipped into the platforms.
+		* You can then use the spikes to damage boost to the other owl and then reach the checks as normal.
+		* In essence, this is an extension of the MINOR GLITCHES execution for the starting room.
+		*/
                 if (location < 2) {
                     return inventory.contains(Items.BRICK) && (difficulty >= Difficulty.S_HARD || canLift(inventory));
                 }
@@ -3177,28 +3177,28 @@ public class Main {
         }
         else if (level.equals("E5")) {
             if (region == 0x3) {
-				/*
-				* Added MERCILESS logic for this region, which is the Blue Hub Room (0x3). 
-				* You can do a Double Bear Bounce from the starting area to reach this region. 
-				* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
-				* The Boots and Golden Glove are both required to perform this execution.
-				* Added HARD logic to the Blue Hub Room as well. 
-				* These checks can be reached without the Helmet by performing very precise dashes to create footholds in the middle set of blocks.
-				& This also puts the MERCILESS execution in logic without the Helmet as well.
-				*/ 
+		/*
+		* Added MERCILESS logic for this region, which is the Blue Hub Room (0x3). 
+		* You can do a Double Bear Bounce from the starting area to reach this region. 
+		* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+		* The Boots and Golden Glove are both required to perform this execution.
+		* Added HARD logic to the Blue Hub Room as well. 
+		* These checks can be reached without the Helmet by performing very precise dashes to create footholds in the middle set of blocks.
+		& This also puts the MERCILESS execution in logic without the Helmet as well.
+		*/ 
                 return ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
 					&& (inventory.contains(Items.SPIKED_HELMET) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))))
 						|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
 							&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x6) {
-				/* 
-				* Added MERCILESS Logic to the Green Falling Warp Room - Bottom Center check.
-				* This is reached by doing a single-tile walljump to scale the bottom set of throw blocks after entering the area.
-				* A Glove check has been added specifically for the Key Cards option since that option strictly requires having a Glove.
-				*/ 
+		/* 
+		* Added MERCILESS Logic to the Green Falling Warp Room - Bottom Center check.
+		* This is reached by doing a single-tile walljump to scale the bottom set of throw blocks after entering the area.
+		* A Glove check has been added specifically for the Key Cards option since that option strictly requires having a Glove.
+		*/ 
                 return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-						|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
+			|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
 			}
 			else if (region == 0x7) {
 				return canLift(inventory)
@@ -3209,26 +3209,26 @@ public class Main {
                 return inventory.contains(Items.WARP_REMOTE);
             }
             else if (region == 0xa || region == 0xc) {
-				/*
-				* Added MERCILESS logic for these regions, which are the Blue Unstable Platforms Room (0xa) and the Starting Area (0xc). 
-				* You can do a Double Bear Bounce from the starting area to reach this region. 
-				* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
-				* The Boots and Golden Glove are both required to perform this execution.
-				*/ 
+		/*
+		* Added MERCILESS logic for these regions, which are the Blue Unstable Platforms Room (0xa) and the Starting Area (0xc). 
+		* You can do a Double Bear Bounce from the starting area to reach this region. 
+		* This requires the Remote Control to gain access, but skips needing the Blue + Red Keycards.
+		* The Boots and Golden Glove are both required to perform this execution.
+		*/ 
                 return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-					|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-						&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+			|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+				&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x18) {
-				if (location == 2) {
-					// NORMAL logic added for Hammerbot Room - Upper Right.
-					// You still need to get hit by the Hammerbot, but you have to sneak under a spike while springing and can't lift the Hammerbot.
-					return canSuperLift(inventory)
-						|| (difficulty > Difficulty.EASY && canLift(inventory));
-				}
-				else {
-					return canLift(inventory);
-				}
+		if (location == 2) {
+			// NORMAL logic added for Hammerbot Room - Upper Right.
+			// You still need to get hit by the Hammerbot, but you have to sneak under a spike while springing and can't lift the Hammerbot.
+			return canSuperLift(inventory)
+				|| (difficulty > Difficulty.EASY && canLift(inventory));
+		}
+		else {
+			return canLift(inventory);
+		}
             }
         }
         else if (level.equals("E6")) {
@@ -3265,8 +3265,8 @@ public class Main {
                 }
             }
             else if (region == 0x11) {
-				// MINOR GLITCHES logic added for Smasher Room.
-				// Wallclip to climb over the barriers that you'd need to throw barrels at.
+		// MINOR GLITCHES logic added for Smasher Room.
+		// Wallclip to climb over the barriers that you'd need to throw barrels at.
                 return inventory.contains(Items.FIRE_EXTINGUISHER)
 					&& (canLift(inventory) || difficulty >= Difficulty.S_HARD);
             }
@@ -3275,19 +3275,19 @@ public class Main {
                         && (keyColor == 0 || canSuperGP(inventory));
             }
             else if (region == 0x18) {
-				/* 
-				/ Added MERCILESS logic to Barrel Puzzle Room - Upper Floor Near Start.
-				/ You can use a Single Tile Walljump to escape the spot without needing Boots.
-				/ The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
-				/ A Glove check has been added here to EASY Difficulty, which is to break the Throw Blocks traditionally.
-				*/
+		/* 
+		/ Added MERCILESS logic to Barrel Puzzle Room - Upper Floor Near Start.
+		/ You can use a Single Tile Walljump to escape the spot without needing Boots.
+		/ The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
+		/ A Glove check has been added here to EASY Difficulty, which is to break the Throw Blocks traditionally.
+		*/
                 if (location == 0) {
                     return inventory.contains(Items.PICKAXE) 
 						&& (difficulty > Difficulty.EASY || canLift(inventory))
 						&& (difficulty >= Difficulty.MERCILESS || inventory.contains(Items.JUMP_BOOTS));
                 }
                 else {
-					// The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
+		// The NORMAL logic that was added is to use the Pneumo to float into the room without Boots.
                     return inventory.contains(Items.PICKAXE) && canLift(inventory)
 						&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
                 }
@@ -3307,17 +3307,17 @@ public class Main {
                     return inventory.contains(Items.VALVE) && canLift(inventory);
                 }
                 else {
-				/* 
-				* Added MINOR GLITCHES logic for the Vampire Area - Center Left check.
-				* This check can be obtained without a Glove, using just Boots.
-				* Perform a High Walljump to reach the Spearhead located in the upper right corner.
-				* Stun it, then walk into it towards the left and knock it down the ledges necessary.
-				* Once it's off the ledge that the door leading to the Hammerbot room is on, do the jumps across like normal to reach the check.
-				*/
-                    return difficulty > Difficulty.EASY 
-						&& inventory.contains(Items.VALVE) 
-						&& inventory.contains(Items.JUMP_BOOTS)
-						&& (difficulty >= Difficulty.S_HARD || canLift(inventory));
+		/* 
+		* Added MINOR GLITCHES logic for the Vampire Area - Center Left check.
+		* This check can be obtained without a Glove, using just Boots.
+		* Perform a High Walljump to reach the Spearhead located in the upper right corner.
+		* Stun it, then walk into it towards the left and knock it down the ledges necessary.
+		* Once it's off the ledge that the door leading to the Hammerbot room is on, do the jumps across like normal to reach the check.
+		*/
+                return difficulty > Difficulty.EASY 
+			&& inventory.contains(Items.VALVE) 
+			&& inventory.contains(Items.JUMP_BOOTS)
+			&& (difficulty >= Difficulty.S_HARD || canLift(inventory));
                 }
             }
             else if (region == 0x7) {
