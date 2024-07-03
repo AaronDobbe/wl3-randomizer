@@ -1888,7 +1888,7 @@ public class Main {
 				*/
                     && inventory.contains(Items.STONE_FOOT)
                     && (canGP(inventory) 
-			|| (inventory.contains(Items.JUMP_BOOTS) && ((canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
+				|| (inventory.contains(Items.JUMP_BOOTS) && (canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
         }
         else if (location.equals("E1G")) {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
