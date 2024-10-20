@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.12.0-RC3";
+    private static final String VERSION = "v0.12.0-RC4";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -1592,14 +1592,14 @@ public class Main {
             return canAccess("W2", inventory);
         }
         else if (location.equals("W2R")) {
+            /*
+             * The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
+             * Then do a midair enemy bounce to reach the platforms leading to the Golf.
+             * Finally, navigate rightwards while avoiding any other hazards on the way to reach the Red Chest.
+             */
             return canAccess("W2", inventory)
-			/*
-			* The MINOR GLITCHES execution added involves performing a big dashjump wallclip from the deactivated Trolley.
-			* Then do a midair enemy bounce to reach the platforms leading to the Golf.
-			* Finally, navigate rightwards while avoiding any other hazards on the way to reach the Red Chest.
-			*/
-                    && inventory.contains(Items.WHEELS)
-			|| (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+                && (inventory.contains(Items.WHEELS)
+			        || (difficulty >= Difficulty.S_HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W2G")) {
 			/*
@@ -1610,10 +1610,10 @@ public class Main {
 			* The same enemy bounce from HARD can then be used to reach the Golf that leads to the chest.
 			*/
             return canAccess("W2", inventory)
-                    && (inventory.contains(Items.WHEELS) && inventory.contains(Items.FLUTE))
-			|| (difficulty >= Difficulty.HARD && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
-			|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
-                        || (difficulty >= Difficulty.MERCILESS && inventory.contains (Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS));
+                && ((inventory.contains(Items.WHEELS) && inventory.contains(Items.FLUTE))
+			    || (difficulty >= Difficulty.HARD && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+			    || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS) && canLift(inventory))
+                || (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WHEELS) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W2B")) {
             return canAccess("W2", inventory)
@@ -1657,8 +1657,8 @@ public class Main {
 			* This execution skips the need for the Air Pump.
 			*/
             return canAccess("W3", inventory)
-        		&& (inventory.contains(Items.PUMP) && canSwim(inventory))
-				|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+        		&& ((inventory.contains(Items.PUMP) && canSwim(inventory))
+				|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("W4S")) {
             return canAccess("W4", inventory);
@@ -1705,9 +1705,11 @@ public class Main {
                     && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W5B")) {
+			// New HARD Logic for W5 Blue Chest: Dismount from the ladder while the Donuteer prepares to throw its Donut to the right.
+			// Timed properly, you can get up the ledge to eat the donut and break the donut blocks without needing a Glove.
             return canAccess("W5", inventory)
                     && canSwim(inventory)
-                    && canLift(inventory)
+                    && (difficulty >= Difficulty.HARD || canLift(inventory))
                     && (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
         }
         else if (location.equals("W6S")) {
@@ -1872,9 +1874,9 @@ public class Main {
 			* The soft reset can occur either immediately before entering the stage or after a suspend save.
 			*/
             return canAccess("S6", inventory)
-		&& inventory.contains(Items.JUMP_BOOTS)
-                	&& ((inventory.contains(Items.GONG) && inventory.contains(Items.SCISSORS) && canSuperGP(inventory) && canLift(inventory))
-			|| (dayOnly && difficulty >= Difficulty.MERCILESS));
+		        && inventory.contains(Items.JUMP_BOOTS)
+                && ((inventory.contains(Items.GONG) && inventory.contains(Items.SCISSORS) && canSuperGP(inventory) && canLift(inventory))
+			        || (dayOnly && difficulty >= Difficulty.MERCILESS));
         }
         else if (location.equals("E1S")) {
             return canAccess("E1", inventory);
@@ -1888,7 +1890,7 @@ public class Main {
 				*/
                     && inventory.contains(Items.STONE_FOOT)
                     && (canGP(inventory) 
-				|| (inventory.contains(Items.JUMP_BOOTS) && (canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
+				        || (inventory.contains(Items.JUMP_BOOTS) && (canSuperSwim(inventory) || (difficulty >= Difficulty.HARD && canSwim(inventory)))));
         }
         else if (location.equals("E1G")) {
 		// Added MINOR GLITCHES execution for this chest. Perform a walljump to reach the pipe that leads to Jamano.
@@ -1905,8 +1907,8 @@ public class Main {
 			* This will damage boost you and allow you to get enough height to reach the Blue Chest.
 			*/
             return canAccess("E1", inventory)
-                && ((inventory.contains(Items.DETONATOR))
-			|| (difficulty >= Difficulty.MERCILESS && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET)));
+                && (inventory.contains(Items.DETONATOR)
+			        || (difficulty >= Difficulty.MERCILESS && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) && inventory.contains(Items.SPIKED_HELMET)));
         }
         else if (location.equals("E2S")) {
             return canAccess("E2", inventory);
@@ -1931,8 +1933,8 @@ public class Main {
 				* Finally, jump up to get past the current and climb the ladder to reach this area without dayTime or Super Flippers.
 			*/
             return canAccess("E2", inventory)
-                    && (dayOnly || canSuperSwim(inventory)
-			|| (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC)));
+                && (dayOnly || canSuperSwim(inventory)
+			        || (difficulty >= Difficulty.MERCILESS && canSwim(inventory) && inventory.contains(Items.GARLIC)));
         }
         else if (location.equals("E3S")) {
             return canAccess("E3", inventory)
@@ -1982,8 +1984,8 @@ public class Main {
 			* A Glove check has been added specifically for the Key Cards option since that option strictly requires having a Glove.
 			*/ 
             return canAccess("E5", inventory)
-                && (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-			|| (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory)));
+                && ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+			        || (inventory.contains(Items.WARP_REMOTE) && (difficulty >= Difficulty.MERCILESS || canLift(inventory))));
         }
         else if (location.equals("E5B")) {
         	/*
@@ -1993,19 +1995,21 @@ public class Main {
 		* The Boots and Golden Glove are both required to perform this execution.
 		*/ 
 		return canAccess("E5", inventory)
-			&& (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
-			|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-				&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+			&& ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
+			    || (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
+				    && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)
                     && (difficulty >= Difficulty.S_HARD || canLift(inventory));
         }
         else if (location.equals("E6R")) {
+            // can manip pneumo to get past the fire
+			// In addition, you can damage boost using the 2nd Paragoom to get through and reach this chest without needing Overalls.
             return canAccess("E6", inventory)
-                    && inventory.contains(Items.FIRE_EXTINGUISHER)
+                    && (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER))
                     && canLift(inventory)
-                    && canGP(inventory);
+                    && (difficulty >= Difficulty.HARD || canGP(inventory));
         }
         else if (location.equals("E6G")) {
             return canAccess("E6", inventory)
@@ -2250,11 +2254,16 @@ public class Main {
 			&& (difficulty > Difficulty.EASY || inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x15) {
+				// New MINOR GLITCHES Logic for Inside 2nd Hill.
+				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a walljump after obtaining this check.
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
-                        && (canSwim(inventory) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)));
+                        && (canSwim(inventory) || ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) || (difficulty >= Difficulty.S_HARD && canSuperGP(inventory)));
             }
             else if (region == 0x16) {
-                return inventory.contains(Items.GARLIC) && (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+				// New MINOR GLITCHES Logic for Inside 4th Hill.
+				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a reverse walljump after obtaining this check.
+                return inventory.contains(Items.GARLIC) 
+						&& (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && (inventory.contains(Items.JUMP_BOOTS) || canSuperGP(inventory))));
             }
             else if (region == 0x17) {
 		/*
@@ -2270,8 +2279,8 @@ public class Main {
 		* The Glove can be skipped by using a High Walljump, when compared to the HARD Logic execution.
 		*/
                 return canSwim(inventory) 
-			|| (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)
-				&& (difficulty >= Difficulty.S_HARD || canLift(inventory)));
+			        || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)
+				        && (difficulty >= Difficulty.S_HARD || canLift(inventory)));
             }
         }
         else if (level.equals("N5")) {
@@ -2371,14 +2380,19 @@ public class Main {
         else if (level.equals("W1")) {
             if (region == 0x1) {
                 if (location == 0) {
-                    return !daytime || (inventory.contains(Items.GARLIC) && canSuperGP(inventory));
+					// New MERCILESS Logic for Main Area - By Underground Ladder.
+					// This can be obtained during the day by Ladder Scrolling at the start to screen wrap downwards.
+                    return (!daytime || (daytime && difficulty >= Difficulty.MERCILESS)) || (inventory.contains(Items.GARLIC) && canSuperGP(inventory));
                 }
                 else {
                     if (daytime) {
-                        return inventory.contains(Items.GARLIC) && canSuperGP(inventory);
+						// New MERCILESS Logic for Main Area - Above Underground Quicksand Pool.
+						// This can be obtained during the day by Ladder Scrolling at the start to screen wrap downwards.
+						// It can be reached at night without any powerups in the same manner as well.
+                        return (inventory.contains(Items.GARLIC) && canSuperGP(inventory)) || difficulty >= Difficulty.MERCILESS;
                     }
                     else {
-                        return inventory.contains(Items.GARLIC) || canGP(inventory);
+                        return inventory.contains(Items.GARLIC) || canGP(inventory) || difficulty >= Difficulty.MERCILESS;
                     }
                 }
             }
@@ -2502,10 +2516,10 @@ public class Main {
 			* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
 			*/
                     return canGP(inventory)
-			|| (difficulty >= Difficulty.HARD
-				&& ((canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS)))
-                		&& canLift(inventory)
-                        	&& inventory.contains(Items.JUMP_BOOTS)));
+			            || (difficulty >= Difficulty.HARD
+				            && ((canSwim(inventory) || (inventory.contains(Items.BEANSTALK_SEEDS)))
+                		        && canLift(inventory)
+                        	    && inventory.contains(Items.JUMP_BOOTS)));
                 }
                 else if (location == 2) {
                     return canSwim(inventory);
@@ -2540,8 +2554,8 @@ public class Main {
 		* This execution skips the need for the Air Pump.
 		*/
                 return (inventory.contains(Items.PUMP) && canSwim(inventory))
-			|| (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS) 
-				&& (canSwim(inventory) || keyColor == 3));
+			        || (difficulty >= Difficulty.MERCILESS && canGP(inventory) && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS)
+				        && (canSwim(inventory) || keyColor == 3));
             }
         }
         else if (level.equals("W4")) {
@@ -2615,7 +2629,7 @@ public class Main {
 		* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
 		*/
                 return inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS)
-			|| difficulty >= Difficulty.S_HARD;
+			        || difficulty >= Difficulty.S_HARD;
             }
             else if (region == 0x1c) {
 		/*
@@ -2940,8 +2954,10 @@ public class Main {
 			&& (difficulty >= Difficulty.S_HARD || canLift(inventory));
             }
             else if (region == 0x7) {
+				// New MERCILESS Logic for Main Area - Center Left Ledge.
+				// Using Ladder Scrolling at the start and a walljump, this check can be reached without needing Boots.
                 if (location == 0) {
-                    return inventory.contains(Items.JUMP_BOOTS);
+                    return inventory.contains(Items.JUMP_BOOTS) || difficulty >= Difficulty.MERCILESS;
                 }
                 else {
 		/*
@@ -3258,16 +3274,18 @@ public class Main {
             }
             else if (region == 0x7) {
                 if (location == 0) {
-                    return canLift(inventory) && canGP(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                    return canLift(inventory) && canGP(inventory)
+                            && (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER));
                 }
                 else {
-                    return canLift(inventory) && inventory.contains(Items.FIRE_EXTINGUISHER);
+                    return canLift(inventory)
+                            && (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER));
                 }
             }
             else if (region == 0x11) {
 		// MINOR GLITCHES logic added for Smasher Room.
 		// Wallclip to climb over the barriers that you'd need to throw barrels at.
-                return inventory.contains(Items.FIRE_EXTINGUISHER)
+                return (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER))
 					&& (canLift(inventory) || difficulty >= Difficulty.S_HARD);
             }
             else if (region == 0x14) {
