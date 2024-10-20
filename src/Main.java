@@ -2005,7 +2005,7 @@ public class Main {
         }
         else if (location.equals("E6R")) {
             // can manip pneumo to get past the fire
-			// In addition, you can damage boost using the 2nd Paragoom to get through and reach this chest without needing Overalls.
+			      // In addition, you can damage boost using the 2nd Paragoom to get through and reach this chest without needing Overalls.
             return canAccess("E6", inventory)
                     && (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER))
                     && canLift(inventory)
