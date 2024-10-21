@@ -2419,7 +2419,8 @@ public class Main {
                     return ((difficulty >= Difficulty.S_HARD && canGP(inventory)) || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
                 }
                 else if (location == 2) {
-                    return canGP(inventory);
+                    // Day Ruins Basement can be obtainable in MERCILESS without Overalls by Ladder Scrolling.
+                    return canGP(inventory) || difficulty >= Difficulty.MERCILESS;
                 }
                 else {
                     return true;
