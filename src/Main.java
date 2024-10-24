@@ -2126,7 +2126,7 @@ public class Main {
         else if (level.equals("N2")) {
             if (region == 0x1) {
                 if (location == 2) {
-					// Main Area - Behind Wall Right of Start is obtainable without the Helmet or Red Overalls.
+					// Main Area - Excavate Lower Right is obtainable without the Helmet or Red Overalls.
 					// This is done by ladder scrolling at the ladder closest to the snake pot and navigating the terrain.
 					// A walljump is also required if you don't have Boots, but this won't check for Boots as MINOR GLITCHES is lower than MERCILESS on the difficulty scale.
                     return (canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET)) || difficulty >= Difficulty.MERCILESS;
