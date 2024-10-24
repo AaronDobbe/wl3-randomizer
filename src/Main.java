@@ -2005,7 +2005,7 @@ public class Main {
         }
         else if (location.equals("E6R")) {
             // can manip pneumo to get past the fire
-			      // In addition, you can damage boost using the 2nd Paragoom to get through and reach this chest without needing Overalls.
+			// In addition, you can damage boost using the 2nd Paragoom to get through and reach this chest without needing Overalls.
             return canAccess("E6", inventory)
                     && (difficulty >= Difficulty.HARD || inventory.contains(Items.FIRE_EXTINGUISHER))
                     && canLift(inventory)
@@ -2126,10 +2126,15 @@ public class Main {
         else if (level.equals("N2")) {
             if (region == 0x1) {
                 if (location == 2) {
-                    return canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET);
+					// Main Area - Behind Wall Right of Start is obtainable without the Helmet or Red Overalls.
+					// This is done by ladder scrolling at the ladder closest to the snake pot and navigating the terrain.
+					// A walljump is also required if you don't have Boots, but this won't check for Boots as MINOR GLITCHES is lower than MERCILESS on the difficulty scale.
+                    return (canSuperGP(inventory) && inventory.contains(Items.SPIKED_HELMET)) || difficulty >= Difficulty.MERCILESS;
                 }
                 else if (location == 0) {
-                    return !daytime || inventory.contains(Items.GARLIC);
+					// Main Area - Behind Wall Right of Start is obtainable without Garlic.
+					// This is done by ladder scrolling at the ladder closest to the snake pot and navigating the terrain.
+                    return !daytime || inventory.contains(Items.GARLIC) || difficulty >= Difficulty.MERCILESS;
                 }
                 else {
                     return true;
@@ -2419,7 +2424,7 @@ public class Main {
                     return ((difficulty >= Difficulty.S_HARD && canGP(inventory)) || inventory.contains(Items.SPIKED_HELMET)) && canLift(inventory);
                 }
                 else if (location == 2) {
-                    // Day Ruins Basement can be obtainable in MERCILESS without Overalls by Ladder Scrolling.
+					// Day Ruins Basement can be obtainable in MERCILESS without Overalls by Ladder Scrolling.
                     return canGP(inventory) || difficulty >= Difficulty.MERCILESS;
                 }
                 else {
