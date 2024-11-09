@@ -2262,11 +2262,10 @@ public class Main {
 				// New MINOR GLITCHES Logic for Inside 2nd Hill.
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a walljump after obtaining this check.
 				// This can only be in logic on MINOR GLITCHES if it specifically contains the Red Key.
-				// If it's not the Red Key, it must be MERCILESS instead due to requiring a single tile walljump.
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
                         && (canSwim(inventory) 
 							|| ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) 
-							|| (difficulty >= Difficulty.S_HARD && canSuperGP(inventory) && (keyColor == 1 || difficulty >= Difficulty.MERCILESS)));
+							|| (difficulty >= Difficulty.S_HARD && canSuperGP(inventory)));
             }
             else if (region == 0x16) {
 				// New MERCILESS Logic for Inside 4th Hill.
