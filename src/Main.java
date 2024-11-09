@@ -2273,7 +2273,7 @@ public class Main {
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a reverse walljump after obtaining this check.
 				// The required 
                 return inventory.contains(Items.GARLIC) 
-						&& (canSwim(inventory) || (difficulty >= Difficulty.MERCILESS && (inventory.contains(Items.JUMP_BOOTS) || canSuperGP(inventory))));
+						&& (canSwim(inventory) || ((difficulty >= Difficulty.S_HARD && (inventory.contains(Items.JUMP_BOOTS))) || (difficulty >= Difficulty.MERCILESS && canSuperGP(inventory))));
             }
             else if (region == 0x17) {
 		/*
