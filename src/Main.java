@@ -1997,7 +1997,7 @@ public class Main {
 		return canAccess("E5", inventory)
 			&& ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
 			    || (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-				    && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
+				    && canSuperGP(inventory) && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS)));
         }
         else if (location.equals("E6S")) {
             return canAccess("E6", inventory)
