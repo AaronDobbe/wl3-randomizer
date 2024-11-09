@@ -2261,14 +2261,19 @@ public class Main {
             else if (region == 0x15) {
 				// New MINOR GLITCHES Logic for Inside 2nd Hill.
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a walljump after obtaining this check.
+				// This can only be in logic on MINOR GLITCHES if it specifically contains the Red Key.
+				// If it's not the Red Key, it must be MERCILESS instead due to requiring a single tile walljump.
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
-                        && (canSwim(inventory) || ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) || (difficulty >= Difficulty.S_HARD && canSuperGP(inventory)));
+                        && (canSwim(inventory) 
+							|| ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) 
+							|| (difficulty >= Difficulty.S_HARD && canSuperGP(inventory) && (keyColor == 1 || difficulty >= Difficulty.MERCILESS)));
             }
             else if (region == 0x16) {
-				// New MINOR GLITCHES Logic for Inside 4th Hill.
+				// New MERCILESS Logic for Inside 4th Hill.
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a reverse walljump after obtaining this check.
+				// The required 
                 return inventory.contains(Items.GARLIC) 
-						&& (canSwim(inventory) || (difficulty >= Difficulty.S_HARD && (inventory.contains(Items.JUMP_BOOTS) || canSuperGP(inventory))));
+						&& (canSwim(inventory) || (difficulty >= Difficulty.MERCILESS && (inventory.contains(Items.JUMP_BOOTS) || canSuperGP(inventory))));
             }
             else if (region == 0x17) {
 		/*
@@ -3211,7 +3216,7 @@ public class Main {
                 return ((inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
 					&& (inventory.contains(Items.SPIKED_HELMET) || (difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS))))
 						|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-							&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+							&& canSuperGP(inventory) && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x6) {
 		/* 
@@ -3239,7 +3244,7 @@ public class Main {
 		*/ 
                 return (inventory.contains(Items.BLUE_KEY_CARD) && inventory.contains(Items.RED_KEY_CARD) && canLift(inventory))
 			|| (difficulty >= Difficulty.MERCILESS && inventory.contains(Items.WARP_REMOTE)
-				&& canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
+				&& canSuperGP(inventory) && canSuperLift(inventory) && inventory.contains(Items.JUMP_BOOTS));
             }
             else if (region == 0x18) {
 		if (location == 2) {
