@@ -3182,9 +3182,13 @@ public class Main {
                 return inventory.contains(Items.DETONATOR) && inventory.contains(Items.JUMP_BOOTS);
             }
             else if (region == 0xa) {
+				// To get Red Chest Room - Upper Right without needing the Helmet in MINOR GLITCHES, perform the Rolling Glitch in the previous room.
+				// From there, break the blocks in a specific manner to get enough height to reach the check. A Reverse walljump is required to do this. 
+				// Additionally, a quick directional input change is required to break an additional block to allow you to properly stand in the foothold without being crouched.
                 return inventory.contains(Items.GARLIC)
                         && (inventory.contains(Items.SPIKED_HELMET)
-                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS)));
+                            || (difficulty > Difficulty.EASY && inventory.contains(Items.JUMP_BOOTS))
+							|| difficulty >= Difficulty.S_HARD);
             }
             else if (region == 0x14) {
                 return inventory.contains(Items.GARLIC) && canLift(inventory);
