@@ -2604,24 +2604,26 @@ public class Main {
                     return true;
                 }
                 else {
-		/*
-		* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
-		* I also added a MINOR GLITCHES alternative for this check. 
-		* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
-		* Then use a high walljump to escape out of the pit. 
-		* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
-		*/
-                    return canSuperGP(inventory)
-                        && (inventory.contains(Items.SPIKED_HELMET)
-                            || (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
-				|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS)));
+				/*
+				* This was not originally checking for Boots, which is required for HARD logic. I fixed this issue.
+				* I also added a MINOR GLITCHES alternative for this check. 
+				* Break a small alcove in the right wall 1 block up, and leave the bottom left block able to be jumped on. 
+				* Then use a high walljump to escape out of the pit. 
+				* This MINOR GLITCHES alternative Skips needing the Helmet and Glove when compared to HARD Logic.
+				* Additional HARD Logic to skip needing Red Overalls involves going down the ladder and breaking the edge blocks from below.
+				*/
+                    return (canSuperGP(inventory)
+						&& (inventory.contains(Items.SPIKED_HELMET)
+							|| (difficulty >= Difficulty.HARD && canLift(inventory) && inventory.contains(Items.JUMP_BOOTS))
+								|| (difficulty >= Difficulty.S_HARD && inventory.contains(Items.JUMP_BOOTS))))
+						|| (difficulty >= Difficulty.HARD && canGP(inventory) && inventory.contains(Items.SPIKED_HELMET));
                 }
             }
             else if (region == 0x16) {
-		/*
-		* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 1 - Upper Right.
-		* If you use Ladder Scrolling to reach the region, only a regular glove is needed to get this check.
-		*/
+			/*
+			* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 1 - Upper Right.
+			* If you use Ladder Scrolling to reach the region, only a regular glove is needed to get this check.
+			*/
                 return canSuperLift(inventory)
 					|| (difficulty >= Difficulty.MERCILESS && canLift(inventory));
             }
@@ -2634,18 +2636,18 @@ public class Main {
                 }
             }
             else if (region == 0x19) {
-		/*
-		* Added MINOR GLITCHES logic for this check, which is Zombie Room - Below Third Platform.
-		* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
-		*/
+			/*
+			* Added MINOR GLITCHES logic for this check, which is Zombie Room - Below Third Platform.
+			* With a Reverse Walljump, it's possible to obtain this check without either the Helmet or Boots.
+			*/
                 return inventory.contains(Items.SPIKED_HELMET) || inventory.contains(Items.JUMP_BOOTS)
 			        || difficulty >= Difficulty.S_HARD;
             }
             else if (region == 0x1c) {
-		/*
-		* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 2 - Upper Right.
-		* If you use Ladder Scrolling to reach the region, only the Red Overalls are needed to get this check.
-		*/
+			/*
+			* Added MERCILESS logic for this check, which is Switch Puzzle Side Room 2 - Upper Right.
+			* If you use Ladder Scrolling to reach the region, only the Red Overalls are needed to get this check.
+			*/
                 return canSuperGP(inventory)
 			&& (canSuperLift(inventory) || difficulty >= Difficulty.MERCILESS);
             }
