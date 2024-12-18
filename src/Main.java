@@ -2535,7 +2535,11 @@ public class Main {
                     return canSwim(inventory);
                 }
                 else if (location == 3) {
-                    return canSuperSwim(inventory);
+					// HARD logic for Main Area - Underwater Right: Outswim the current by Holding up+right and 
+					// pressing the dash button in a specific rhythm. You'll gain a bit of headway each time you keep rhythm.
+					// The fish will only hit you once at worst if executed right, and you can recover as long as you keep your inputs precise.
+                    return canSuperSwim(inventory)
+						|| (difficulty >= Difficulty.HARD && canSwim(inventory));
                 }
             }
             else if (region == 0x7) {
