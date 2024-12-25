@@ -2261,16 +2261,16 @@ public class Main {
             else if (region == 0x15) {
 				// New MINOR GLITCHES Logic for Inside 2nd Hill.
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a walljump after obtaining this check.
-				// This can only be in logic on MINOR GLITCHES if it specifically contains the Red Key.
+				// If this check contains the Grey or Blue Keys, you need to break the blocks of the 1st Hill in the same manner to prevent a single-tile walljump.
                 return inventory.contains(Items.GARLIC) && canLift(inventory)
                         && (canSwim(inventory) 
 							|| ((difficulty >= Difficulty.HARD && inventory.contains(Items.JUMP_BOOTS)) 
-							|| (difficulty >= Difficulty.S_HARD && canSuperGP(inventory)));
+							|| (difficulty >= Difficulty.S_HARD && canSuperGP(inventory))));
             }
             else if (region == 0x16) {
 				// New MERCILESS Logic for Inside 4th Hill.
 				// You can skip needing Boots if you have Red Overalls by breaking the blocks in a specific way, and then doing a reverse walljump after obtaining this check.
-				// The required 
+				// The required single-tile walljump takes place at the 3rd hill, which is why this trick is Merciless without Boots.
                 return inventory.contains(Items.GARLIC) 
 						&& (canSwim(inventory) || ((difficulty >= Difficulty.S_HARD && (inventory.contains(Items.JUMP_BOOTS))) || (difficulty >= Difficulty.MERCILESS && canSuperGP(inventory))));
             }
@@ -2522,8 +2522,6 @@ public class Main {
 			* then do a midair enemy bounce using the Paragoom.
 			* If you have Beanstalk Seeds, climb the beanstalk, then immediately fall down.
 			* Then go across the 2nd set of pipes and do the same midair enemy bounce using the Paragoom.
-			* The latter option can only be in logic if this check is specifically the Grey or Red Keys.
-			* This is because you would not be able to swim down if it's the Green or Blue Keys in this situation.
 			*/
                     return canGP(inventory)
 			            || (difficulty >= Difficulty.HARD
