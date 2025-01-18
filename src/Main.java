@@ -36,7 +36,7 @@ public class Main {
 
     private static GUI gui;
 
-    private static final String VERSION = "v0.12.0-RC4";
+    private static final String VERSION = "v0.12.0-RC5";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
